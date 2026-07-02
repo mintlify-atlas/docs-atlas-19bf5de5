@@ -1,0 +1,118 @@
+---
+title: "POST /api/auth/login — Authenticate and Obtain a JWT Token"
+sidebarTitle: "POST /auth/login"
+description: "Authenticate a user with username and password. Returns a signed JWT token valid for 8 hours and the user's profile including their role."
+---
+
+Use this endpoint to obtain a JWT token for the Monitor API. All protected endpoints require this token to be passed in the `Authorization: Bearer` header. Tokens are signed with the server's `JWT_SECRET` and expire after **8 hours** — after expiry, a new login is required.
+
+## Endpoint
+
+`POST /api/auth/login` — **no authentication required.**
+
+---
+
+## Request Body
+
+<ParamField body="username" type="string" required>
+  The user's login name. Must not contain any whitespace characters.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password in plaintext. Compared server-side against the stored bcrypt hash.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "yourpassword"}'
+```
+
+---
+
+## Success Response
+
+**Status: `200 OK`**
+
+<ResponseField name="token" type="string">
+  Signed JWT token. Include this value in subsequent requests as `Authorization: Bearer <token>`. Expires in **8 hours**.
+</ResponseField>
+
+<ResponseField name="usuario" type="object">
+  The authenticated user's profile.
+
+  <Expandable title="usuario fields">
+    <ResponseField name="id" type="integer">
+      The user's unique numeric identifier.
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string | null">
+      The user's display name. May be `null` if not set.
+    </ResponseField>
+
+    <ResponseField name="username" type="string">
+      The user's login name.
+    </ResponseField>
+
+    <ResponseField name="rol" type="string">
+      The user's assigned role. One of: `Administrador`, `Operador`, `Tecnico`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "usuario": {
+    "id": 1,
+    "nombre": "Admin User",
+    "username": "admin",
+    "rol": "Administrador"
+  }
+}
+```
+
+---
+
+## Error Responses
+
+| Status | Condition | Response Body |
+|--------|-----------|---------------|
+| `400 Bad Request` | `username` or `password` is missing from the request body | `{ "error": "Usuario y contraseña requeridos" }` |
+| `400 Bad Request` | `username` contains whitespace characters | `{ "error": "El usuario no puede contener espacios" }` |
+| `401 Unauthorized` | User not found or password does not match | `{ "error": "Credenciales inválidas" }` |
+
+**Example 400 — missing credentials:**
+
+```json
+{ "error": "Usuario y contraseña requeridos" }
+```
+
+**Example 401 — wrong username or password:**
+
+```json
+{ "error": "Credenciales inválidas" }
+```
+
+---
+
+## Using the Token
+
+Store the token from the login response and attach it as a `Bearer` token on every subsequent protected request.
+
+```bash
+# 1. Log in and capture the token
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "pass"}' | jq -r .token)
+
+# 2. Use the token to call a protected endpoint
+curl http://localhost:3000/api/expedientes \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+<Note>
+  The JWT payload contains `{ id, username, rol }`. Every protected endpoint decodes this payload via the `verificarToken` middleware to identify the caller and apply role-based access checks — no additional session lookup is performed.
+</Note>

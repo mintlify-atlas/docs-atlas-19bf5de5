@@ -1,0 +1,135 @@
+---
+title: "Manage Insurance Claim Expedientes with Monitor API"
+sidebarTitle: "Expediente Management"
+description: "Create, read, update, and delete insurance claim expedientes. Track vehicles through the four-stage status lifecycle and maintain a full audit history."
+---
+
+An expediente is the central record in Monitor API, representing a vehicle's complete insurance claim from the moment it arrives at the shop to its final delivery. Every piece of data — vehicle details, client information, assigned staff, documents received, evidence files, and damage surveys — is tied to a single expediente identified by its unique `no_siniestro` (claim/accident number).
+
+## Lifecycle stages
+
+Each expediente moves through four ordered states that reflect the vehicle's physical progress through the repair process:
+
+| State | Meaning |
+|---|---|
+| `Ingreso` | Vehicle has arrived and the claim has been opened. This is the **default** state on creation. |
+| `Restauracion` | Active repair and restoration work is underway. |
+| `Pendiente_de_salida` | Repairs are complete; the vehicle is awaiting final inspection, payment, or paperwork. |
+| `Salida` | The vehicle has been delivered to the client and the claim is closed. |
+
+The typical progression is:
+
+```
+Ingreso → Restauracion → Pendiente_de_salida → Salida
+```
+
+Every time the `estado` field changes, Monitor API automatically writes a record to the `historial_estado` table that captures the previous state, the new state, an ISO timestamp, and the ID of the user who made the change. This gives you a full, tamper-evident audit trail for every claim.
+
+<Tip>
+  Always include `id_aseguradora` when creating an expediente so the record is properly linked to the insurer. You can retrieve a list of available insurers from `GET /api/expedientes/aseguradoras` before creating the claim.
+</Tip>
+
+## Creating an expediente
+
+Only users with the **Administrador** or **Operador** role may create expedientes.
+
+The only required field is `no_siniestro` — the official claim or accident reference number. It must be unique across the database; attempting to create a duplicate returns `409 Conflict`.
+
+```bash
+curl -X POST http://localhost:3000/api/expedientes \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "no_siniestro": "SIN-2024-001",
+    "marca": "Toyota",
+    "modelo": "Corolla",
+    "tipo": "Sedan",
+    "color": "Blanco",
+    "placas": "ABC-123",
+    "nombre_cliente": "Juan García",
+    "telefono_cliente": "555-0100",
+    "id_aseguradora": 1
+  }'
+```
+
+On success, the API returns `201 Created` with the full expediente object. The `estado` is automatically set to `Ingreso` and the first `historial_estado` entry is written in the same operation.
+
+<Note>
+  Date fields (`fecha_ingreso`, `fecha_valuacion`, `fecha_autorizacion`, `fecha_pzas_completas`, `unidad_terminada`) accept strings in `YYYY-MM-DD` format. The API normalises them to noon UTC internally to prevent timezone-related off-by-one day errors.
+</Note>
+
+## Fetching expedientes
+
+<CardGroup cols={3}>
+  <Card title="List all" icon="list">
+    `GET /api/expedientes`
+
+    Returns a summary array of all expedientes, ordered by `fecha_ingreso` descending. Each object includes `no_siniestro`, `estado`, vehicle fields, `nombre_cliente`, and the linked `aseguradora`.
+  </Card>
+  <Card title="Get one" icon="file-lines">
+    `GET /api/expedientes/:no_siniestro`
+
+    Returns the full expediente record including nested `aseguradora`, `historial_estado` (most-recent-first), and `evidencia` arrays.
+  </Card>
+  <Card title="List insurers" icon="building-columns">
+    `GET /api/expedientes/aseguradoras`
+
+    Returns `[{ id, nombre }]` for all registered insurance companies. Use this to populate dropdowns before creating a new claim.
+  </Card>
+</CardGroup>
+
+All three endpoints require a valid `Authorization: Bearer <token>` header. The **Técnico** role has read-only access to these endpoints.
+
+## Updating an expediente
+
+`PUT /api/expedientes/:no_siniestro` performs a **partial update** — only include the fields you want to change. Requires the **Administrador** or **Operador** role.
+
+```bash
+# Advance the claim to the Restauracion stage
+curl -X PUT http://localhost:3000/api/expedientes/SIN-2024-001 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "estado": "Restauracion" }'
+```
+
+<Note>
+  Updating `estado` via the `PUT` endpoint automatically creates a new `historial_estado` row with the previous state, the new state, a timestamp, and the requesting user's ID. No manual history writes are needed.
+</Note>
+
+Returns the updated expediente object on success. Returns `404` if the siniestro does not exist.
+
+## Deleting an expediente
+
+`DELETE /api/expedientes/:no_siniestro` permanently removes the expediente and **all associated records** in a single transaction: checklists, checklist items, levantamientos, levantamiento concepts, evidence records, and status history entries.
+
+This action requires the **Administrador** role.
+
+```bash
+curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{ "ok": true, "no_siniestro": "SIN-2024-001" }
+```
+
+Returns `404` if the expediente is not found.
+
+## Document checklist
+
+Each expediente tracks whether the required paper documents have been received using a set of boolean fields. Set each field to `true` via `PUT /api/expedientes/:no_siniestro` as the corresponding document arrives at the shop:
+
+| Field | Document |
+|---|---|
+| `doc_orden_admision` | Admission order |
+| `doc_identificacion` | Client government-issued ID |
+| `doc_tarjeta_circulacion` | Vehicle registration card |
+| `doc_caratula_poliza` | Insurance policy cover page |
+| `doc_carta_reparacion` | Repair authorisation letter from insurer |
+| `doc_comprobante_deducible` | Deductible payment receipt |
+| `doc_finiquito` | Settlement / final release document |
+| `doc_encuesta_servicio` | Customer satisfaction survey |
+
+All fields default to `null` (not yet received). A value of `true` means the document is in hand; `false` means it was explicitly marked as absent.

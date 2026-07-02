@@ -1,0 +1,110 @@
+---
+title: "Authenticate with Monitor API Using JWT Bearer Tokens"
+sidebarTitle: "Authentication"
+description: "Monitor API uses JWT Bearer tokens for all protected endpoints. Learn how to obtain a token via login, pass it in requests, and handle token expiry."
+---
+
+Monitor API uses JSON Web Tokens (JWT) for authentication. Every protected endpoint requires an `Authorization: Bearer <token>` header. Tokens are signed with a server-side secret and carry the user's identity and role, so no session state is stored on the server.
+
+## Obtaining a Token
+
+Send a `POST` request to `/api/auth/login` with a JSON body containing `username` and `password`. On success the API returns a signed token alongside a summary of the authenticated user.
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "yourpassword"}'
+```
+
+**Successful response (`200 OK`):**
+
+```json
+{
+  "token": "eyJhbGci...",
+  "usuario": {
+    "id": 1,
+    "nombre": "Admin User",
+    "username": "admin",
+    "rol": "Administrador"
+  }
+}
+```
+
+Store the value of `token` — you will include it in every subsequent request to a protected endpoint.
+
+## Token Lifetime
+
+Tokens are valid for **8 hours** from the moment of issue. This is hardcoded in `auth.service.ts`:
+
+```typescript
+const token = jwt.sign(
+  { id: usuario.id, username: usuario.username, rol: usuario.rol },
+  process.env.JWT_SECRET!,
+  { expiresIn: "8h" }
+);
+```
+
+After 8 hours the token is rejected with a `401` response. Re-authenticate via `/api/auth/login` to obtain a new token.
+
+## Using the Token
+
+Pass the token in the `Authorization` header as a Bearer credential on every request to a protected endpoint:
+
+```bash
+curl http://localhost:3000/api/expedientes \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+The server middleware (`verificarToken`) extracts the header, verifies the JWT signature and expiry, and attaches the decoded user payload to the request before passing it to the route handler. Requests that omit the header or present a malformed value are rejected immediately with `401`.
+
+## Token Payload
+
+The decoded JWT contains the following claims:
+
+<ResponseField name="id" type="number" required>
+  The unique numeric ID of the authenticated user in the `usuario` table.
+</ResponseField>
+
+<ResponseField name="username" type="string" required>
+  The user's login username.
+</ResponseField>
+
+<ResponseField name="rol" type="string" required>
+  The user's role — one of `Administrador`, `Operador`, or `Tecnico`. This claim drives all authorization checks across every protected route.
+</ResponseField>
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="object">
+  Returned when `username` or `password` are missing from the request body, or when the `username` value contains whitespace characters.
+
+  ```json
+  { "error": "Usuario y contraseña requeridos" }
+  ```
+  ```json
+  { "error": "El usuario no puede contener espacios" }
+  ```
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="object">
+  Returned when credentials are invalid (wrong password or non-existent user) or when a supplied token is expired or has an invalid signature.
+
+  ```json
+  { "error": "Credenciales inválidas" }
+  ```
+  ```json
+  { "error": "Token inválido o expirado" }
+  ```
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="object">
+  Returned when the request is authenticated (valid token) but the user's role does not meet the requirement of the endpoint being accessed.
+
+  ```json
+  { "error": "Acceso restringido a administradores" }
+  ```
+</ResponseField>
+
+<Warning>
+  The `/api/auth/register` endpoint that creates new user accounts requires an active **Administrador** token in the `Authorization` header. Self-registration is not possible — an administrator must provision every new account.
+</Warning>

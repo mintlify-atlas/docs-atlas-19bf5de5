@@ -1,0 +1,160 @@
+---
+title: "Upload and Manage Evidence Files for Expedientes"
+sidebarTitle: "Evidence Uploads"
+description: "Upload photos and documents as evidence for an insurance claim expediente. Files are stored locally on disk, organized by siniestro number and file type."
+---
+
+Evidence files — photographs of vehicle damage, repair documents, insurance policies, and more — are attached to an expediente by its `no_siniestro`. Monitor API accepts them as multipart form uploads and stores them on the server filesystem, organised into per-claim folders. A corresponding record is written to the `evidencia` table in PostgreSQL so every file can be audited, listed, and deleted through the API.
+
+## File storage structure
+
+Uploaded files land under a configurable base directory (see the [environment variable note](#warning-evidencias-dir) below). Within that base, the layout is:
+
+```
+evidencias/
+└── SIN-2024-001/
+    ├── evidencias/              ← photos and general evidence (default)
+    └── DOCUMENTOS REPARACION/   ← repair documents (?tipo=documento)
+```
+
+Each file is saved as `<unix_timestamp_ms>_<original_filename>` (spaces in the original name are replaced with underscores). The timestamp prefix ensures filenames are unique even when the same file is uploaded more than once.
+
+## Upload limits
+
+The maximum file size is **50 MB** per upload, enforced by the multer middleware. Attempts to exceed this limit will be rejected with a `413 Payload Too Large` response before the file is written to disk.
+
+## Uploading a file
+
+`POST /api/expedientes/:no_siniestro/evidencias`
+
+Send the file as `multipart/form-data` with the field name `archivo`. An optional query parameter `?tipo=documento` routes the file to the `DOCUMENTOS REPARACION` subfolder; omitting it routes the file to the `evidencias/` subfolder.
+
+Requires the **Administrador** or **Operador** role.
+
+<Steps>
+  <Step title="Upload a photo or general evidence file">
+    ```bash
+    curl -X POST http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+      -H "Authorization: Bearer $TOKEN" \
+      -F "archivo=@/path/to/photo.jpg"
+    ```
+  </Step>
+  <Step title="Upload a repair document">
+    ```bash
+    curl -X POST "http://localhost:3000/api/expedientes/SIN-2024-001/evidencias?tipo=documento" \
+      -H "Authorization: Bearer $TOKEN" \
+      -F "archivo=@/path/to/poliza.pdf"
+    ```
+  </Step>
+</Steps>
+
+**Success response** — `201 Created`:
+
+```json
+{
+  "id": 17,
+  "no_siniestro": "SIN-2024-001",
+  "tipo": "image/jpeg",
+  "nombre_archivo": "photo.jpg",
+  "ruta": "/srv/app/evidencias/SIN-2024-001/evidencias/1705123456789_photo.jpg",
+  "fecha_carga": "2024-01-13T10:24:16.789Z",
+  "ubicacion_almacenamiento": "Local",
+  "subido_por": 3
+}
+```
+
+| Field | Description |
+|---|---|
+| `id` | Auto-incremented primary key of the evidence record. |
+| `no_siniestro` | The claim this file belongs to. |
+| `tipo` | MIME type detected from the uploaded file (e.g. `image/jpeg`, `application/pdf`). |
+| `nombre_archivo` | The original filename as sent by the client. |
+| `ruta` | Absolute path on the server where the file was written. |
+| `fecha_carga` | UTC timestamp of when the record was created. |
+| `subido_por` | ID of the authenticated user who performed the upload. |
+
+Returns `404` if the `no_siniestro` does not match any existing expediente.
+
+## Listing evidence
+
+`GET /api/expedientes/:no_siniestro/evidencias`
+
+Returns an array of all evidence records for the claim, ordered by `fecha_carga` descending (most recent first). Accessible by **all authenticated roles** (Administrador, Operador, and Técnico).
+
+```bash
+curl http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 18,
+    "no_siniestro": "SIN-2024-001",
+    "tipo": "application/pdf",
+    "nombre_archivo": "poliza.pdf",
+    "ruta": "/srv/app/evidencias/SIN-2024-001/DOCUMENTOS REPARACION/1705123999000_poliza.pdf",
+    "fecha_carga": "2024-01-13T10:33:19.000Z",
+    "ubicacion_almacenamiento": "Local",
+    "subido_por": 3
+  },
+  {
+    "id": 17,
+    "no_siniestro": "SIN-2024-001",
+    "tipo": "image/jpeg",
+    "nombre_archivo": "photo.jpg",
+    "ruta": "/srv/app/evidencias/SIN-2024-001/evidencias/1705123456789_photo.jpg",
+    "fecha_carga": "2024-01-13T10:24:16.789Z",
+    "ubicacion_almacenamiento": "Local",
+    "subido_por": 3
+  }
+]
+```
+
+## Deleting a single file
+
+`DELETE /api/expedientes/:no_siniestro/evidencias/:id`
+
+Deletes the database record **and** the physical file from disk. Requires the **Administrador** role.
+
+```bash
+curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001/evidencias/17 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{ "ok": true }
+```
+
+Returns `404` if no evidence record with the given `id` exists.
+
+## Deleting the entire evidence folder
+
+`DELETE /api/expedientes/:no_siniestro/evidencias`
+
+Recursively removes the entire `evidencias/<no_siniestro>/` directory from disk. This is intended for rollback scenarios — for example, when a new expediente creation is cancelled and the partially uploaded files need to be cleaned up. Requires the **Administrador** or **Operador** role.
+
+```bash
+curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{ "ok": true }
+```
+
+<Warning>
+  Monitor API resolves the evidence base directory using the `EVIDENCIAS_DIR` environment variable. If the variable is not set, it defaults to `../evidencias` relative to `process.cwd()` (one level above the project root). Make sure this path exists and is writable by the user account running the Node.js process, otherwise all upload and folder-deletion operations will fail.
+
+  Set it explicitly in your environment to avoid ambiguity:
+
+  ```bash
+  EVIDENCIAS_DIR=/var/monitor/evidencias node dist/index.js
+  ```
+</Warning>

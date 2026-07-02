@@ -1,0 +1,304 @@
+---
+title: "PUT /api/expedientes/:no_siniestro — Update an Expediente's Fields or Status"
+sidebarTitle: "PUT /expedientes/:id"
+description: "Partially update any field of an existing expediente including status transitions. State changes are automatically recorded in the audit history. Requires Administrador or Operador."
+---
+
+Update one or more fields on an existing expediente. Send only the fields you want to change — omitted fields are left exactly as they are. All date and timestamp fields are re-parsed server-side, so you can safely send a `"YYYY-MM-DD"` string even on an update.
+
+<Note>
+  The `estado` field **cannot** be changed through this endpoint. Status transitions are managed by a dedicated workflow module. Sending `estado` in the request body has no effect — it is silently stripped before the update is applied.
+</Note>
+
+---
+
+## Endpoint
+
+```
+PUT /api/expedientes/:no_siniestro
+```
+
+**Authentication:** Bearer token required. **Role:** `Administrador` or `Operador` only.
+
+---
+
+## Path parameter
+
+<ParamField path="no_siniestro" type="string" required>
+  The unique claim number of the expediente to update (e.g. `SIN-2024-001`). Returns `400` if the segment is missing.
+</ParamField>
+
+---
+
+## Request body
+
+Send any subset of the fields below. All fields are optional — at minimum one field should be included for the request to be meaningful.
+
+### Vehicle fields
+
+<ParamField body="marca" type="string">
+  Vehicle make.
+</ParamField>
+
+<ParamField body="modelo" type="string">
+  Vehicle model.
+</ParamField>
+
+<ParamField body="tipo" type="string">
+  Body type or trim level.
+</ParamField>
+
+<ParamField body="color" type="string">
+  Vehicle color.
+</ParamField>
+
+<ParamField body="placas" type="string">
+  License plate number.
+</ParamField>
+
+<ParamField body="vehiculo" type="string">
+  Free-text vehicle description.
+</ParamField>
+
+### Client fields
+
+<ParamField body="nombre_cliente" type="string">
+  Full name of the policyholder / vehicle owner.
+</ParamField>
+
+<ParamField body="telefono_cliente" type="string">
+  Client contact phone number.
+</ParamField>
+
+<ParamField body="correo_cliente" type="string">
+  Client email address.
+</ParamField>
+
+### Administrative fields
+
+<ParamField body="factura" type="string">
+  Invoice number for the repair.
+</ParamField>
+
+<ParamField body="orden" type="string">
+  Internal work-order reference.
+</ParamField>
+
+<ParamField body="asesor" type="string">
+  Service advisor's name.
+</ParamField>
+
+<ParamField body="tecnico" type="string">
+  Body technician assigned to this unit.
+</ParamField>
+
+<ParamField body="mecanico" type="string">
+  Mechanic assigned to this unit.
+</ParamField>
+
+<ParamField body="observaciones" type="string">
+  General notes or observations about the repair.
+</ParamField>
+
+<ParamField body="id_aseguradora" type="integer">
+  Reassign the expediente to a different insurer by providing a new FK.
+</ParamField>
+
+### Date fields
+
+All date fields accept `"YYYY-MM-DD"` strings. The server parses them at `12:00:00` to avoid UTC day-shift.
+
+<ParamField body="fecha_ingreso" type="string">
+  Date the vehicle entered the shop. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_valuacion" type="string">
+  Date the damage estimate was completed. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_autorizacion" type="string">
+  Date the insurer authorized the repair. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_pzas_completas" type="string">
+  Date all replacement parts arrived. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="unidad_terminada" type="string">
+  Date the vehicle repair was finished. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+### Insurer-communication fields
+
+<ParamField body="comentarios_aseguradora" type="string">
+  Updated notes from or for the insurer.
+</ParamField>
+
+<ParamField body="comentarios_aseguradora_fh" type="string">
+  ISO 8601 timestamp of the latest insurer comment. Example: `"2024-03-20T10:30:00.000Z"`.
+</ParamField>
+
+### Custom dato fields
+
+<ParamField body="dato1" type="string">
+  Custom tracking label slot 1 (up to 500 chars).
+</ParamField>
+
+<ParamField body="dato1_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato1`.
+</ParamField>
+
+<ParamField body="dato2" type="string">
+  Custom tracking label slot 2.
+</ParamField>
+
+<ParamField body="dato2_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato2`.
+</ParamField>
+
+<ParamField body="dato3" type="string">
+  Custom tracking label slot 3.
+</ParamField>
+
+<ParamField body="dato3_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato3`.
+</ParamField>
+
+<ParamField body="dato4" type="string">
+  Custom tracking label slot 4.
+</ParamField>
+
+<ParamField body="dato4_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato4`.
+</ParamField>
+
+### Document checklist flags
+
+<ParamField body="doc_orden_admision" type="boolean">
+  Admission work order received.
+</ParamField>
+
+<ParamField body="doc_identificacion" type="boolean">
+  Client government-issued ID received.
+</ParamField>
+
+<ParamField body="doc_tarjeta_circulacion" type="boolean">
+  Vehicle registration card received.
+</ParamField>
+
+<ParamField body="doc_caratula_poliza" type="boolean">
+  Insurance policy cover page received.
+</ParamField>
+
+<ParamField body="doc_carta_reparacion" type="boolean">
+  Repair authorization letter received.
+</ParamField>
+
+<ParamField body="doc_comprobante_deducible" type="boolean">
+  Deductible payment receipt received.
+</ParamField>
+
+<ParamField body="doc_finiquito" type="boolean">
+  Final settlement document received.
+</ParamField>
+
+<ParamField body="doc_encuesta_servicio" type="boolean">
+  Customer satisfaction survey completed.
+</ParamField>
+
+---
+
+## Request example
+
+Assign a technician and mark that the replacement parts have arrived:
+
+```bash
+curl -X PUT http://localhost:3000/api/expedientes/SIN-2024-001 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tecnico": "Carlos Pérez",
+    "fecha_pzas_completas": "2024-03-22"
+  }'
+```
+
+---
+
+## Response — 200 OK
+
+Returns the complete updated expediente as persisted (flat scalar fields, no nested relations).
+
+<ResponseField name="no_siniestro" type="string">
+  Unchanged primary key.
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  The current workflow status (unaffected by this call — managed by the status workflow module).
+</ResponseField>
+
+<Tip>
+  All response fields follow the same schema as `GET /api/expedientes/:no_siniestro`. Refer to that page for the complete field reference.
+</Tip>
+
+### Example response body
+
+```json
+{
+  "no_siniestro": "SIN-2024-001",
+  "factura": "F-00123",
+  "orden": "OT-2024-045",
+  "asesor": "María López",
+  "fecha_ingreso": "2024-03-15T12:00:00.000Z",
+  "fecha_valuacion": "2024-03-18T12:00:00.000Z",
+  "fecha_autorizacion": "2024-03-20T12:00:00.000Z",
+  "fecha_pzas_completas": "2024-03-22T12:00:00.000Z",
+  "unidad_terminada": null,
+  "tecnico": "Carlos Pérez",
+  "mecanico": null,
+  "vehiculo": null,
+  "observaciones": "Daño lateral derecho severo.",
+  "marca": "Toyota",
+  "modelo": "Corolla",
+  "tipo": "Sedán",
+  "color": "Blanco",
+  "placas": "ABC-123",
+  "nombre_cliente": "Juan García",
+  "telefono_cliente": "555-100-2000",
+  "correo_cliente": "juan@example.com",
+  "dato1": null,
+  "dato1_fecha_hora": null,
+  "dato2": null,
+  "dato2_fecha_hora": null,
+  "dato3": null,
+  "dato3_fecha_hora": null,
+  "dato4": null,
+  "dato4_fecha_hora": null,
+  "comentarios_aseguradora": null,
+  "comentarios_aseguradora_fh": null,
+  "doc_orden_admision": true,
+  "doc_identificacion": true,
+  "doc_tarjeta_circulacion": true,
+  "doc_caratula_poliza": false,
+  "doc_carta_reparacion": false,
+  "doc_comprobante_deducible": null,
+  "doc_finiquito": null,
+  "doc_encuesta_servicio": null,
+  "estado": "Restauracion",
+  "ubicacion_almacenamiento": "Local",
+  "id_aseguradora": 1,
+  "creado_por": 2
+}
+```
+
+---
+
+## Error responses
+
+| Status | Body | Cause |
+|---|---|---|
+| `400` | `{ "error": "No. Siniestro requerido" }` | The `:no_siniestro` path segment is missing |
+| `401` | `{ "error": "Token requerido" }` | No `Authorization` header provided |
+| `401` | `{ "error": "Token inválido o expirado" }` | JWT verification failed |
+| `403` | `{ "error": "Acceso restringido a administradores y operadores" }` | Authenticated user has Técnico role |
+| `404` | `{ "error": "Expediente no encontrado" }` | No record with that `no_siniestro` exists |
+| `500` | `{ "error": "Error interno al actualizar expediente" }` | Database or internal server error |

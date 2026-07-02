@@ -1,0 +1,69 @@
+---
+title: "GET /api/levantamientos/:id/costo-total — Calculate Total Repair Cost"
+sidebarTitle: "GET /costo-total"
+description: "Calculate and return the sum of all cost concepts attached to a levantamiento de daños. Returns the total as a number. Requires authentication."
+---
+
+This endpoint sums the `costo` values of all `levantamiento_concepto` records attached to a levantamiento and returns the total repair estimate. If the levantamiento has no concepts yet, the total is `0`.
+
+## Endpoint
+
+```
+GET /api/levantamientos/:id/costo-total
+```
+
+Requires a valid Bearer token. All authenticated roles (`Administrador`, `Operador`, `Tecnico`) may call this endpoint.
+
+<Note>
+  The total only reflects concepts that have already been added. To get an updated estimate after adding or removing concepts, simply call this endpoint again — no caching is involved.
+</Note>
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric primary key of the levantamiento whose concepts should be summed. Must parse as a valid integer.
+</ParamField>
+
+## Request Example
+
+```bash
+curl http://localhost:3000/api/levantamientos/42/costo-total \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Response
+
+### 200 — Success
+
+Returns an object with the levantamiento ID and the calculated total.
+
+```json
+{
+  "id_levantamiento": 42,
+  "total": 12500
+}
+```
+
+<Expandable title="Response fields">
+
+  <ResponseField name="id_levantamiento" type="integer">
+    The ID of the levantamiento whose concepts were summed. Matches the `:id` path parameter.
+  </ResponseField>
+
+  <ResponseField name="total" type="number">
+    The sum of all `costo` values for this levantamiento's concepts, computed as a JavaScript `number`. Each concept's `costo` is cast with `Number()` before summing; concepts with a `null` cost contribute `0`. Returns `0` when the levantamiento has no concepts.
+  </ResponseField>
+
+</Expandable>
+
+## Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "id inválido" }` | The `:id` path segment is not a valid integer. |
+| `401`  | — | Missing or invalid `Authorization` header. |
+| `404`  | `{ "error": "Levantamiento no encontrado" }` | No levantamiento exists with the given ID. |
+
+<Tip>
+  Use this endpoint as the final step in an estimate workflow: [create the levantamiento](/api/levantamiento/create) → [add concepts](/api/levantamiento/conceptos) → call `/costo-total` to get the repair estimate to present to the insurer.
+</Tip>

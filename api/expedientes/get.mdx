@@ -1,0 +1,398 @@
+---
+title: "GET /api/expedientes/:no_siniestro — Retrieve a Single Expediente"
+sidebarTitle: "GET /expedientes/:id"
+description: "Fetch a single expediente by its siniestro number, including related checklists, evidence metadata, and levantamiento records. Requires authentication."
+---
+
+Retrieve a single expediente and all of its related records in one request. Unlike the list endpoint, this response includes the full set of scalar fields plus nested relations: `aseguradora`, `historial_estado` (audit history, newest-first), and `evidencia` (file metadata). All authenticated roles may call this endpoint.
+
+---
+
+## Endpoint
+
+```
+GET /api/expedientes/:no_siniestro
+```
+
+**Authentication:** Bearer token required (any role).
+
+---
+
+## Path parameter
+
+<ParamField path="no_siniestro" type="string" required>
+  The unique claim number that serves as the expediente's primary key (e.g. `SIN-2024-001`). Must be a non-empty string — passing an empty segment returns `400`.
+</ParamField>
+
+---
+
+## Request
+
+No query parameters or request body.
+
+```bash
+curl http://localhost:3000/api/expedientes/SIN-2024-001 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Response — 200 OK
+
+Returns a single expediente object with all scalar fields and nested relations.
+
+### Core fields
+
+<ResponseField name="no_siniestro" type="string">
+  Primary key — the siniestro (claim) number.
+</ResponseField>
+
+<ResponseField name="factura" type="string | null">
+  Invoice number for the repair.
+</ResponseField>
+
+<ResponseField name="orden" type="string | null">
+  Internal work-order reference.
+</ResponseField>
+
+<ResponseField name="asesor" type="string | null">
+  Service advisor assigned to this claim.
+</ResponseField>
+
+<ResponseField name="estado" type="string (estado_enum)">
+  Current workflow status. One of `Ingreso`, `Restauracion`, `Pendiente_de_salida`, or `Salida`.
+</ResponseField>
+
+<ResponseField name="ubicacion_almacenamiento" type="string (ubicacion_enum)">
+  Storage location for evidence files. One of `Local` or `Nube`. Defaults to `Local`.
+</ResponseField>
+
+<ResponseField name="id_aseguradora" type="integer | null">
+  Foreign key to the `aseguradora` table.
+</ResponseField>
+
+<ResponseField name="creado_por" type="integer | null">
+  FK to the `usuario` who created this record.
+</ResponseField>
+
+### Date fields
+
+<ResponseField name="fecha_ingreso" type="string (ISO date) | null">
+  Date the vehicle entered the shop. No time component — stored at `12:00:00 UTC` to avoid timezone drift.
+</ResponseField>
+
+<ResponseField name="fecha_valuacion" type="string (ISO date) | null">
+  Date the damage estimate (valuación) was completed.
+</ResponseField>
+
+<ResponseField name="fecha_autorizacion" type="string (ISO date) | null">
+  Date the insurer authorized the repair.
+</ResponseField>
+
+<ResponseField name="fecha_pzas_completas" type="string (ISO date) | null">
+  Date all replacement parts were received in full.
+</ResponseField>
+
+<ResponseField name="unidad_terminada" type="string (ISO date) | null">
+  Date the vehicle repair was completed.
+</ResponseField>
+
+### Vehicle fields
+
+<ResponseField name="marca" type="string | null">
+  Vehicle make (e.g. `"Toyota"`).
+</ResponseField>
+
+<ResponseField name="modelo" type="string | null">
+  Vehicle model (e.g. `"Corolla"`).
+</ResponseField>
+
+<ResponseField name="tipo" type="string | null">
+  Body type or trim (e.g. `"Sedán"`, `"SUV"`).
+</ResponseField>
+
+<ResponseField name="color" type="string | null">
+  Vehicle color.
+</ResponseField>
+
+<ResponseField name="placas" type="string | null">
+  License plate number.
+</ResponseField>
+
+<ResponseField name="vehiculo" type="string | null">
+  Free-text vehicle description field (sometimes used for VIN or additional notes).
+</ResponseField>
+
+### Client fields
+
+<ResponseField name="nombre_cliente" type="string | null">
+  Full name of the policyholder / vehicle owner.
+</ResponseField>
+
+<ResponseField name="telefono_cliente" type="string | null">
+  Client phone number.
+</ResponseField>
+
+<ResponseField name="correo_cliente" type="string | null">
+  Client email address.
+</ResponseField>
+
+### Staff fields
+
+<ResponseField name="tecnico" type="string | null">
+  Body technician (carrocero) assigned to this unit.
+</ResponseField>
+
+<ResponseField name="mecanico" type="string | null">
+  Mechanic assigned to this unit.
+</ResponseField>
+
+<ResponseField name="observaciones" type="string | null">
+  General observations or notes about the repair.
+</ResponseField>
+
+### Insurer-communication fields
+
+<ResponseField name="comentarios_aseguradora" type="string | null">
+  Free-text field for notes exchanged with the insurer.
+</ResponseField>
+
+<ResponseField name="comentarios_aseguradora_fh" type="string (ISO timestamp) | null">
+  Timestamp of the latest insurer comment. Full datetime with timezone.
+</ResponseField>
+
+### Custom dato fields
+
+These four slot pairs store shop-specific milestones or tracking values. Each has a text label (`datoN`) and an associated timestamp (`datoN_fecha_hora`).
+
+<ResponseField name="dato1" type="string | null">
+  Custom tracking label slot 1 (up to 500 chars).
+</ResponseField>
+
+<ResponseField name="dato1_fecha_hora" type="string (ISO timestamp) | null">
+  Timestamp for `dato1`.
+</ResponseField>
+
+<ResponseField name="dato2" type="string | null">
+  Custom tracking label slot 2.
+</ResponseField>
+
+<ResponseField name="dato2_fecha_hora" type="string (ISO timestamp) | null">
+  Timestamp for `dato2`.
+</ResponseField>
+
+<ResponseField name="dato3" type="string | null">
+  Custom tracking label slot 3.
+</ResponseField>
+
+<ResponseField name="dato3_fecha_hora" type="string (ISO timestamp) | null">
+  Timestamp for `dato3`.
+</ResponseField>
+
+<ResponseField name="dato4" type="string | null">
+  Custom tracking label slot 4.
+</ResponseField>
+
+<ResponseField name="dato4_fecha_hora" type="string (ISO timestamp) | null">
+  Timestamp for `dato4`.
+</ResponseField>
+
+### Document checklist flags
+
+Boolean flags indicating whether each required document has been received. All default to `null` (not yet confirmed).
+
+<ResponseField name="doc_orden_admision" type="boolean | null">
+  Admission work order received.
+</ResponseField>
+
+<ResponseField name="doc_identificacion" type="boolean | null">
+  Client government-issued ID received.
+</ResponseField>
+
+<ResponseField name="doc_tarjeta_circulacion" type="boolean | null">
+  Vehicle registration card received.
+</ResponseField>
+
+<ResponseField name="doc_caratula_poliza" type="boolean | null">
+  Insurance policy cover page received.
+</ResponseField>
+
+<ResponseField name="doc_carta_reparacion" type="boolean | null">
+  Repair authorization letter received.
+</ResponseField>
+
+<ResponseField name="doc_comprobante_deducible" type="boolean | null">
+  Deductible payment receipt received.
+</ResponseField>
+
+<ResponseField name="doc_finiquito" type="boolean | null">
+  Final settlement document received.
+</ResponseField>
+
+<ResponseField name="doc_encuesta_servicio" type="boolean | null">
+  Customer satisfaction survey completed.
+</ResponseField>
+
+### Nested relations
+
+<ResponseField name="aseguradora" type="object | null">
+  The linked insurer record.
+
+  <Expandable title="aseguradora fields">
+    <ResponseField name="id" type="integer">
+      Insurer primary key.
+    </ResponseField>
+    <ResponseField name="nombre" type="string | null">
+      Insurer display name.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="historial_estado" type="array">
+  Audit log of all status transitions for this expediente, ordered newest-first.
+
+  <Expandable title="historial_estado item fields">
+    <ResponseField name="id" type="integer">
+      Auto-incremented entry ID.
+    </ResponseField>
+    <ResponseField name="no_siniestro" type="string">
+      FK back to this expediente.
+    </ResponseField>
+    <ResponseField name="estado_anterior" type="string | null">
+      Status value before the transition. `null` for the initial `Ingreso` entry.
+    </ResponseField>
+    <ResponseField name="estado_nuevo" type="string">
+      Status value after the transition.
+    </ResponseField>
+    <ResponseField name="fecha_cambio" type="string (ISO timestamp)">
+      Server-generated timestamp of when the change occurred.
+    </ResponseField>
+    <ResponseField name="cambiado_por" type="integer | null">
+      FK to the `usuario` who triggered the change.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="evidencia" type="array">
+  Metadata records for every file attached to this expediente. Does **not** include binary content — use the Evidencias endpoints to download files.
+
+  <Expandable title="evidencia item fields">
+    <ResponseField name="id" type="integer">
+      Auto-incremented evidence record ID.
+    </ResponseField>
+    <ResponseField name="no_siniestro" type="string">
+      FK back to this expediente.
+    </ResponseField>
+    <ResponseField name="tipo" type="string | null">
+      File category label (e.g. `"Fotografía"`, `"Documento"`).
+    </ResponseField>
+    <ResponseField name="nombre_archivo" type="string | null">
+      Original file name.
+    </ResponseField>
+    <ResponseField name="ruta" type="string | null">
+      Storage path or URL of the file.
+    </ResponseField>
+    <ResponseField name="fecha_carga" type="string (ISO timestamp) | null">
+      Timestamp when the file was uploaded. Defaults to `now()`.
+    </ResponseField>
+    <ResponseField name="ubicacion_almacenamiento" type="string (ubicacion_enum)">
+      Where the file is stored: `Local` or `Nube`.
+    </ResponseField>
+    <ResponseField name="subido_por" type="integer | null">
+      FK to the `usuario` who uploaded the file.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response body
+
+```json
+{
+  "no_siniestro": "SIN-2024-001",
+  "factura": "F-00123",
+  "orden": "OT-2024-045",
+  "asesor": "María López",
+  "fecha_ingreso": "2024-03-15T12:00:00.000Z",
+  "fecha_valuacion": "2024-03-18T12:00:00.000Z",
+  "fecha_autorizacion": "2024-03-20T12:00:00.000Z",
+  "fecha_pzas_completas": null,
+  "unidad_terminada": null,
+  "tecnico": "Carlos Pérez",
+  "mecanico": null,
+  "vehiculo": null,
+  "observaciones": "Daño lateral derecho severo.",
+  "marca": "Toyota",
+  "modelo": "Corolla",
+  "tipo": "Sedán",
+  "color": "Blanco",
+  "placas": "ABC-123",
+  "nombre_cliente": "Juan García",
+  "telefono_cliente": "555-100-2000",
+  "correo_cliente": "juan@example.com",
+  "dato1": null,
+  "dato1_fecha_hora": null,
+  "dato2": null,
+  "dato2_fecha_hora": null,
+  "dato3": null,
+  "dato3_fecha_hora": null,
+  "dato4": null,
+  "dato4_fecha_hora": null,
+  "comentarios_aseguradora": null,
+  "comentarios_aseguradora_fh": null,
+  "doc_orden_admision": true,
+  "doc_identificacion": true,
+  "doc_tarjeta_circulacion": true,
+  "doc_caratula_poliza": false,
+  "doc_carta_reparacion": false,
+  "doc_comprobante_deducible": null,
+  "doc_finiquito": null,
+  "doc_encuesta_servicio": null,
+  "estado": "Restauracion",
+  "ubicacion_almacenamiento": "Local",
+  "id_aseguradora": 1,
+  "creado_por": 2,
+  "aseguradora": { "id": 1, "nombre": "GNP Seguros" },
+  "historial_estado": [
+    {
+      "id": 2,
+      "no_siniestro": "SIN-2024-001",
+      "estado_anterior": "Ingreso",
+      "estado_nuevo": "Restauracion",
+      "fecha_cambio": "2024-03-17T09:22:00.000Z",
+      "cambiado_por": 2
+    },
+    {
+      "id": 1,
+      "no_siniestro": "SIN-2024-001",
+      "estado_anterior": null,
+      "estado_nuevo": "Ingreso",
+      "fecha_cambio": "2024-03-15T14:05:00.000Z",
+      "cambiado_por": 2
+    }
+  ],
+  "evidencia": [
+    {
+      "id": 7,
+      "no_siniestro": "SIN-2024-001",
+      "tipo": "Fotografía",
+      "nombre_archivo": "daño_lateral.jpg",
+      "ruta": "uploads/SIN-2024-001/daño_lateral.jpg",
+      "fecha_carga": "2024-03-15T14:10:00.000Z",
+      "ubicacion_almacenamiento": "Local",
+      "subido_por": 2
+    }
+  ]
+}
+```
+
+---
+
+## Error responses
+
+| Status | Body | Cause |
+|---|---|---|
+| `400` | `{ "error": "No. Siniestro requerido" }` | The `:no_siniestro` path segment is missing or not a valid string |
+| `401` | `{ "error": "Token requerido" }` | No `Authorization` header provided |
+| `401` | `{ "error": "Token inválido o expirado" }` | JWT verification failed |
+| `404` | `{ "error": "Expediente no encontrado" }` | No record with that `no_siniestro` exists |
+| `500` | `{ "error": "Error al obtener el expediente" }` | Database or internal server error |

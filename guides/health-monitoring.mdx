@@ -1,0 +1,144 @@
+---
+title: "Monitor API Health Checks and System Status"
+sidebarTitle: "Health Monitoring"
+description: "Use the health endpoint to check backend status, database connectivity, disk space, evidence storage, RAM usage, and the frontend service from a single API call."
+---
+
+Monitor API has a built-in observability layer that runs automatically and is also queryable on demand. On startup, the server executes a suite of health checks and logs the results; those same checks repeat every 5 minutes throughout the process lifetime. A dedicated REST endpoint exposes a real-time snapshot of the same data so that external tools, dashboards, and client apps can poll the service programmatically.
+
+## Health endpoint
+
+`GET /api/health`
+
+No authentication is required. Returns a JSON object describing the current state of every monitored subsystem.
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+**Example response:**
+
+```json
+{
+  "ip": "192.168.1.10",
+  "backend": true,
+  "database": true,
+  "disco": {
+    "libre_GB": "45.2",
+    "usado_GB": "14.8",
+    "total_GB": "60.0"
+  },
+  "evidencias": {
+    "archivos": 312,
+    "tamaño_MB": "1240.5"
+  },
+  "expedientes": 87,
+  "ram": {
+    "usada_MB": 128,
+    "total_MB": 8192
+  }
+}
+```
+
+**Field reference:**
+
+<CardGroup cols={2}>
+  <Card title="backend" icon="server">
+    Always `true` when this endpoint responds. Confirms the Express process is running and reachable on the network.
+  </Card>
+  <Card title="database" icon="database">
+    `true` if PostgreSQL responds successfully to a `SELECT 1` query; `false` if the connection times out or throws an error. A `false` value here means the API is running but cannot read or write data.
+  </Card>
+  <Card title="disco" icon="hard-drive">
+    Disk space (in GB, as strings) for the drive where the server process is running. Reported as `libre_GB`, `usado_GB`, and `total_GB`. On Windows the C: drive is queried; on Linux/macOS the drive hosting the current working directory is used. If free space drops below 10 GB, a `WARN` entry is written to the log.
+  </Card>
+  <Card title="evidencias" icon="folder-open">
+    `archivos`: count of top-level entries in `EVIDENCIAS_DIR`. `tamaño_MB`: combined size of those entries in megabytes (as a string with one decimal place). Reflects the growth of uploaded evidence files over time.
+  </Card>
+  <Card title="expedientes" icon="file-medical">
+    Total count of `expediente` rows in the database. Gives a quick sense of overall system load without running a separate query.
+  </Card>
+  <Card title="ram" icon="memory">
+    `usada_MB`: RSS (resident set size) memory consumed by the Node.js process in megabytes. `total_MB`: total physical RAM installed on the host machine. Both are rounded integers.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Set up an external uptime monitoring tool such as [UptimeRobot](https://uptimerobot.com) or Uptime Kuma to poll `GET /api/health` on a regular interval (e.g. every 60 seconds). Configure an alert to fire whenever `database` is `false` — this is the most critical failure mode because it means the API is accepting requests but cannot persist any data.
+</Tip>
+
+## Service discovery endpoint
+
+`GET /discovery`
+
+Returns the server's local IPv4 addresses. No authentication required. Clients on the same LAN can call this endpoint to locate the Monitor API server without relying on a hardcoded IP.
+
+```bash
+curl http://monitor-server.local/discovery
+```
+
+**Response:**
+
+```json
+{
+  "nombre": "Monitor API",
+  "ips": ["192.168.1.10"]
+}
+```
+
+This is especially useful during initial setup, when the server's IP may not yet be known to all clients on the network.
+
+## mDNS / Bonjour discovery
+
+On startup, Monitor API registers itself with the local network via **mDNS (Multicast DNS)** using the Bonjour protocol, advertising the service type `_monitor._tcp`. Clients and operating systems that support mDNS (macOS, most Linux desktops, Windows 10+) can resolve the server by hostname without needing an IP address:
+
+```
+http://<hostname>.local:3000
+```
+
+This means that once the server is running, any device on the same subnet can reach it using its machine hostname — even if DHCP assigns a different IP on every reboot.
+
+## Startup checks
+
+When the server process starts, it runs the following checks in sequence and logs the result of each one:
+
+<Steps>
+  <Step title="checkBackend">
+    Verifies that a process is actively listening on port 3000 (the API port) by inspecting open network connections. Logs `success` if the port is bound, `error` if nothing is listening.
+  </Step>
+  <Step title="checkDatabase">
+    Executes `SELECT 1` against the PostgreSQL database via Prisma. Logs `success` on a valid response, `error` with the exception message if the connection fails.
+  </Step>
+  <Step title="checkDisk">
+    Reads available, used, and total disk space for the server's drive. Logs the figures at `info` level. If free space is below **10 GB**, an additional `warn` entry is written.
+  </Step>
+  <Step title="checkEvidencias">
+    Reads the `EVIDENCIAS_DIR` directory and reports the number of entries and their combined size. Logs `warn` if the directory does not exist (e.g. on a fresh installation before any files have been uploaded).
+  </Step>
+  <Step title="checkFrontend">
+    Makes an HTTP request to `http://localhost:8081`. Logs `success` if the frontend responds with `200 OK`, `warn` if it responds with an unexpected status code, and `warn` (not `error`) if nothing is listening on that port — this allows the API to run independently without the frontend.
+  </Step>
+</Steps>
+
+All five checks repeat automatically every **5 minutes** while the server is running, keeping the log file current without requiring manual intervention.
+
+## Log file
+
+All log entries — from startup checks, periodic checks, request handlers, and internal services — are appended to `logs/app.log` in the project root. The file is created automatically if it does not exist.
+
+Each line follows this format:
+
+```
+[ISO timestamp] [LEVEL] [Context] Message | {data}
+```
+
+**Example entries:**
+
+```
+[2024-01-13T10:00:00.000Z] [SUCCESS] [PostgreSQL] Conexión exitosa a la base de datos | {}
+[2024-01-13T10:00:00.012Z] [INFO] [Disco] Estado del disco local | {"total_GB":"60.0","usado_GB":"14.8","libre_GB":"45.2"}
+[2024-01-13T10:00:00.025Z] [WARN] [Frontend] No disponible (sin conexión o no iniciado) | {"puerto":8081}
+[2024-01-13T10:00:01.100Z] [SUCCESS] [Expedientes] Expediente creado | {"no_siniestro":"SIN-2024-001"}
+```
+
+Log levels used: `SUCCESS`, `INFO`, `WARN`, `ERROR`. The log file grows indefinitely — consider setting up log rotation (e.g. with `logrotate` on Linux) for long-running production deployments.

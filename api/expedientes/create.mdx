@@ -1,0 +1,309 @@
+---
+title: "POST /api/expedientes — Create a New Insurance Claim Expediente"
+sidebarTitle: "POST /expedientes"
+description: "Create a new expediente record for an incoming vehicle. Requires a unique siniestro number and Administrador or Operador role. Initial status is Ingreso."
+---
+
+Create a new insurance claim record in Monitor API. The siniestro number (`no_siniestro`) is the primary key — it must be unique across all records. On success the API automatically sets `estado` to `Ingreso` and writes the first `historial_estado` audit entry. Técnico users do not have write access and will receive `403`.
+
+---
+
+## Endpoint
+
+```
+POST /api/expedientes
+```
+
+**Authentication:** Bearer token required. **Role:** `Administrador` or `Operador` only.
+
+---
+
+## Request body
+
+<ParamField body="no_siniestro" type="string" required>
+  Unique claim identifier that becomes the primary key (e.g. `"SIN-2024-001"`). Leading and trailing whitespace is trimmed automatically. Returns `400` if blank, `409` if already taken.
+</ParamField>
+
+### Vehicle fields
+
+<ParamField body="marca" type="string">
+  Vehicle make (e.g. `"Toyota"`).
+</ParamField>
+
+<ParamField body="modelo" type="string">
+  Vehicle model (e.g. `"Corolla"`).
+</ParamField>
+
+<ParamField body="tipo" type="string">
+  Body type or trim level (e.g. `"Sedán"`, `"SUV"`).
+</ParamField>
+
+<ParamField body="color" type="string">
+  Vehicle color (e.g. `"Blanco"`).
+</ParamField>
+
+<ParamField body="placas" type="string">
+  License plate number.
+</ParamField>
+
+<ParamField body="vehiculo" type="string">
+  Free-text vehicle description (VIN, additional notes, etc.).
+</ParamField>
+
+### Client fields
+
+<ParamField body="nombre_cliente" type="string">
+  Full name of the policyholder / vehicle owner.
+</ParamField>
+
+<ParamField body="telefono_cliente" type="string">
+  Client contact phone number.
+</ParamField>
+
+<ParamField body="correo_cliente" type="string">
+  Client email address.
+</ParamField>
+
+### Administrative fields
+
+<ParamField body="factura" type="string">
+  Invoice number for the repair.
+</ParamField>
+
+<ParamField body="orden" type="string">
+  Internal work-order reference.
+</ParamField>
+
+<ParamField body="asesor" type="string">
+  Service advisor's name.
+</ParamField>
+
+<ParamField body="tecnico" type="string">
+  Body technician assigned to this unit.
+</ParamField>
+
+<ParamField body="mecanico" type="string">
+  Mechanic assigned to this unit.
+</ParamField>
+
+<ParamField body="observaciones" type="string">
+  General notes or observations about the repair.
+</ParamField>
+
+<ParamField body="id_aseguradora" type="integer">
+  Foreign key referencing the `aseguradora` table. Use `GET /api/expedientes/aseguradoras` to look up valid IDs.
+</ParamField>
+
+### Date fields
+
+All date fields accept `"YYYY-MM-DD"` strings. The API parses them at `12:00:00` local time to prevent UTC day-shift issues.
+
+<ParamField body="fecha_ingreso" type="string">
+  Date the vehicle entered the shop. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_valuacion" type="string">
+  Date the damage estimate was completed. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_autorizacion" type="string">
+  Date the insurer authorized the repair. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="fecha_pzas_completas" type="string">
+  Date all replacement parts arrived. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+<ParamField body="unidad_terminada" type="string">
+  Date the vehicle repair was finished. Format: `"YYYY-MM-DD"`.
+</ParamField>
+
+### Insurer-communication fields
+
+<ParamField body="comentarios_aseguradora" type="string">
+  Free-text notes exchanged with the insurer.
+</ParamField>
+
+<ParamField body="comentarios_aseguradora_fh" type="string">
+  ISO 8601 timestamp of the latest insurer comment. Example: `"2024-03-20T10:30:00.000Z"`.
+</ParamField>
+
+### Custom dato fields
+
+Four generic slot pairs for shop-specific milestones or tracking values. Each pair has a text label (up to 500 chars) and an ISO timestamp.
+
+<ParamField body="dato1" type="string">
+  Custom tracking label slot 1.
+</ParamField>
+
+<ParamField body="dato1_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato1`.
+</ParamField>
+
+<ParamField body="dato2" type="string">
+  Custom tracking label slot 2.
+</ParamField>
+
+<ParamField body="dato2_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato2`.
+</ParamField>
+
+<ParamField body="dato3" type="string">
+  Custom tracking label slot 3.
+</ParamField>
+
+<ParamField body="dato3_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato3`.
+</ParamField>
+
+<ParamField body="dato4" type="string">
+  Custom tracking label slot 4.
+</ParamField>
+
+<ParamField body="dato4_fecha_hora" type="string">
+  ISO 8601 timestamp for `dato4`.
+</ParamField>
+
+### Document checklist flags
+
+Boolean flags indicating whether each required document has been handed in. Omit a field to leave it as `null` (not yet confirmed).
+
+<ParamField body="doc_orden_admision" type="boolean">
+  Admission work order received.
+</ParamField>
+
+<ParamField body="doc_identificacion" type="boolean">
+  Client government-issued ID received.
+</ParamField>
+
+<ParamField body="doc_tarjeta_circulacion" type="boolean">
+  Vehicle registration card received.
+</ParamField>
+
+<ParamField body="doc_caratula_poliza" type="boolean">
+  Insurance policy cover page received.
+</ParamField>
+
+<ParamField body="doc_carta_reparacion" type="boolean">
+  Repair authorization letter received.
+</ParamField>
+
+<ParamField body="doc_comprobante_deducible" type="boolean">
+  Deductible payment receipt received.
+</ParamField>
+
+<ParamField body="doc_finiquito" type="boolean">
+  Final settlement document received.
+</ParamField>
+
+<ParamField body="doc_encuesta_servicio" type="boolean">
+  Customer satisfaction survey completed.
+</ParamField>
+
+<Note>
+  The `estado` field is **not** accepted in the request body. It is always initialized to `Ingreso` by the service layer and can only be changed later via `PUT /api/expedientes/:no_siniestro`.
+</Note>
+
+---
+
+## Request example
+
+```bash
+curl -X POST http://localhost:3000/api/expedientes \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "no_siniestro": "SIN-2024-001",
+    "marca": "Toyota",
+    "modelo": "Corolla",
+    "color": "Blanco",
+    "placas": "ABC-123",
+    "nombre_cliente": "Juan García",
+    "id_aseguradora": 1
+  }'
+```
+
+---
+
+## Response — 201 Created
+
+Returns the full expediente object as persisted. All fields are included (same schema as `GET /api/expedientes/:no_siniestro` without nested relations).
+
+<ResponseField name="no_siniestro" type="string">
+  The trimmed siniestro number echoed back.
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Always `"Ingreso"` for a newly created record.
+</ResponseField>
+
+<ResponseField name="creado_por" type="integer | null">
+  Set from the authenticated user's JWT `id` claim.
+</ResponseField>
+
+<Tip>
+  All other fields follow the same schema as the `GET /:no_siniestro` response. Refer to the [single-record endpoint](/api/expedientes/get) for the complete field list.
+</Tip>
+
+### Example response body
+
+```json
+{
+  "no_siniestro": "SIN-2024-001",
+  "factura": null,
+  "orden": null,
+  "asesor": null,
+  "fecha_ingreso": null,
+  "fecha_valuacion": null,
+  "fecha_autorizacion": null,
+  "fecha_pzas_completas": null,
+  "unidad_terminada": null,
+  "tecnico": null,
+  "mecanico": null,
+  "vehiculo": null,
+  "observaciones": null,
+  "marca": "Toyota",
+  "modelo": "Corolla",
+  "tipo": null,
+  "color": "Blanco",
+  "placas": "ABC-123",
+  "nombre_cliente": "Juan García",
+  "telefono_cliente": null,
+  "correo_cliente": null,
+  "dato1": null,
+  "dato1_fecha_hora": null,
+  "dato2": null,
+  "dato2_fecha_hora": null,
+  "dato3": null,
+  "dato3_fecha_hora": null,
+  "dato4": null,
+  "dato4_fecha_hora": null,
+  "comentarios_aseguradora": null,
+  "comentarios_aseguradora_fh": null,
+  "doc_orden_admision": null,
+  "doc_identificacion": null,
+  "doc_tarjeta_circulacion": null,
+  "doc_caratula_poliza": null,
+  "doc_carta_reparacion": null,
+  "doc_comprobante_deducible": null,
+  "doc_finiquito": null,
+  "doc_encuesta_servicio": null,
+  "estado": "Ingreso",
+  "ubicacion_almacenamiento": "Local",
+  "id_aseguradora": 1,
+  "creado_por": 2
+}
+```
+
+---
+
+## Error responses
+
+| Status | Body | Cause |
+|---|---|---|
+| `400` | `{ "error": "El No. Siniestro es obligatorio" }` | `no_siniestro` is missing or blank in the request body |
+| `401` | `{ "error": "Token requerido" }` | No `Authorization` header provided |
+| `401` | `{ "error": "Token inválido o expirado" }` | JWT verification failed |
+| `403` | `{ "error": "Acceso restringido a administradores y operadores" }` | Authenticated user has Técnico role |
+| `409` | `{ "error": "Ya existe un expediente con ese No. Siniestro" }` | A record with that `no_siniestro` already exists |
+| `500` | `{ "error": "Error interno al crear expediente" }` | Database or internal server error |

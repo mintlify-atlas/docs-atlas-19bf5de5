@@ -1,47 +1,182 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Monitor API in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Install Monitor API, configure your environment, start the server, and make your first authenticated request to the expedientes endpoint in five steps."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you from a fresh checkout to a running Monitor API server with a verified authenticated request. By the end you will have the server listening on port 3000, a JWT token in hand, and a successful response from `GET /api/expedientes`.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Prerequisites">
+    Make sure the following are installed and running before you begin:
+
+    | Requirement | Minimum Version | Notes |
+    |---|---|---|
+    | Node.js | 18 | LTS recommended |
+    | pnpm | 11.5 | Enforced by `devEngines` in `package.json` |
+    | PostgreSQL | 14+ | Must be accessible from your machine |
+
+    Verify your versions:
 
     ```bash
-    npm install your-package
+    node --version   # v18.x.x or higher
+    pnpm --version   # 11.5.x or higher
+    psql --version   # psql (PostgreSQL) 14.x or higher
+    ```
+
+    Create an empty PostgreSQL database for Monitor before continuing:
+
+    ```bash
+    createdb monitor
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Clone and Install">
+    Clone the repository and install dependencies with pnpm:
 
     ```bash
-    your-cli init
+    git clone https://github.com/sheeplettuce/Monitor.git
+    cd Monitor
+    pnpm install
     ```
+
+    pnpm will install all runtime and dev dependencies declared in `package.json`, including Express 5, Prisma, `bonjour-service`, `jsonwebtoken`, and `multer`.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Configure Environment">
+    Copy the example below into a `.env` file at the project root. All variables are loaded at startup via `dotenv/config`.
 
     ```bash
-    your-cli start
+    # .env
+    DATABASE_URL="postgresql://user:password@localhost:5432/monitor"
+    JWT_SECRET="change-me-to-a-long-random-string"
+    EVIDENCIAS_DIR="../evidencias"
     ```
+
+    Replace `user`, `password`, and `monitor` with your actual PostgreSQL credentials and database name. See [Configuration](/configuration) for a full description of every variable.
+
+    Next, apply the Prisma schema to your database to create all tables:
+
+    ```bash
+    pnpm prisma migrate deploy
+    ```
+
+    <Note>
+      During initial development you can also use `pnpm prisma db push` to sync the schema without creating a migration history. Use `migrate deploy` for production and CI environments.
+    </Note>
+  </Step>
+
+  <Step title="Start the Server">
+    Run the development server with hot-reload via `tsx watch`:
+
+    ```bash
+    pnpm dev
+    ```
+
+    You should see output similar to the following in your terminal:
+
+    ```
+    2025-07-10T12:00:00.000Z [Backend] [SUCCESS] Servidor iniciado | {"puerto":3000}
+    2025-07-10T12:00:00.000Z [Red]     [INFO]    Servicio mDNS anunciado | {"tipo":"_monitor._tcp"}
+    2025-07-10T12:00:00.000Z [Red]     [INFO]    IP local | {"ip":"192.168.1.42"}
+    2025-07-10T12:00:00.000Z [Red]     [INFO]    Nombre del servidor | {"hostname":"mi-mac","dns":"mi-mac.local"}
+    2025-07-10T12:00:00.000Z [Sistema] [INFO]    ══════════ Iniciando verificación de estado ══════════
+    2025-07-10T12:00:00.000Z [Sistema] [INFO]    ══════════ Verificación completada ══════════
+    ```
+
+    The server binds to `0.0.0.0:3000` and advertises itself on the local network via mDNS. Status checks run immediately at startup and repeat every five minutes.
+  </Step>
+
+  <Step title="Authenticate">
+    Obtain a JWT token by posting credentials to `/api/auth/login`:
+
+    ```bash
+    curl -s -X POST http://localhost:3000/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"username": "admin", "password": "your-password"}'
+    ```
+
+    A successful response returns the token and basic user information:
+
+    ```json
+    {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "usuario": {
+        "id": 1,
+        "nombre": "Administrador",
+        "username": "admin",
+        "rol": "Administrador"
+      }
+    }
+    ```
+
+    Copy the `token` value — you will pass it as a `Bearer` token in all subsequent requests. Tokens expire after **8 hours**.
+
+    <Note>
+      The `rol` field will be one of `Administrador`, `Operador`, or `Técnico`. Different roles have access to different routes. Refer to [Authentication & Roles](/concepts/authentication) for the full permission matrix.
+    </Note>
+  </Step>
+
+  <Step title="Make Your First API Call">
+    Use the token from the previous step to fetch the list of expedientes:
+
+    ```bash
+    curl -s http://localhost:3000/api/expedientes \
+      -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    ```
+
+    The response returns an array of expediente objects, each identified by its `no_siniestro` claim number and including vehicle details, current `estado`, assigned personnel, and related document flags.
+
+    A successful response looks like:
+
+    ```json
+    [
+      {
+        "no_siniestro": "SIN-2025-001",
+        "vehiculo": "Toyota Corolla",
+        "marca": "Toyota",
+        "modelo": "2022",
+        "placas": "ABC-123",
+        "estado": "Ingreso",
+        "nombre_cliente": "Juan Pérez",
+        "fecha_ingreso": "2025-07-10"
+      }
+    ]
+    ```
+
+    You're all set. Explore the rest of the API with the same Bearer token.
   </Step>
 </Steps>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+  Not sure what IP address the server is running on? Hit the `/discovery` endpoint from any machine on the same LAN:
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  ```bash
+  curl http://monitor-server.local:3000/discovery
+  ```
+
+  ```json
+  {
+    "nombre": "Monitor API",
+    "ips": ["192.168.1.42"]
+  }
+  ```
+
+  This endpoint requires no authentication and returns all non-loopback IPv4 addresses the server is bound to. It's useful for configuring frontend apps and mobile clients that need to locate the API dynamically. The same information is also published over mDNS as the `_monitor._tcp` service, discoverable by Bonjour-compatible clients without hitting any HTTP endpoint.
 </Tip>
+
+## Build for Production
+
+When you're ready to deploy, compile the TypeScript source to JavaScript and run the compiled output directly with Node:
+
+```bash
+# Compile TypeScript → dist/
+pnpm build
+
+# Run the compiled server
+pnpm start
+```
+
+`pnpm build` invokes `tsc`, which outputs ES2022 JavaScript modules to `dist/` per the settings in `tsconfig.json`. `pnpm start` then runs `node dist/server.js` — no `tsx` or TypeScript tooling required at runtime.
+
+Make sure your production environment has `DATABASE_URL` and `JWT_SECRET` set before running `pnpm start`. See [Configuration](/configuration) for all available options.

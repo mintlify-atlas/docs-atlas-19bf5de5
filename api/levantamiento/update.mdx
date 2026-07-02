@@ -1,0 +1,187 @@
+---
+title: "PUT /api/levantamientos/:id — Update a Damage Survey Record"
+sidebarTitle: "PUT /levantamientos/:id"
+description: "Partially update a levantamiento de daños by its ID. Send only the fields to change — all others are preserved. Requires authentication."
+---
+
+Update any field on an existing damage survey. Only send the fields you want to change — all omitted fields retain their current values. The response returns the complete updated record so you can confirm the new state without a follow-up GET.
+
+## Endpoint
+
+```
+PUT /api/levantamientos/:id
+```
+
+Requires a valid Bearer token. All authenticated roles (`Administrador`, `Operador`, `Tecnico`) may update levantamientos.
+
+<Warning>
+  This endpoint does **not** modify attached cost concepts. To add or remove concepts, use the [Conceptos](/api/levantamiento/conceptos) endpoints.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric primary key of the levantamiento to update. Must parse as a valid integer.
+</ParamField>
+
+## Request Body
+
+Send any subset of the fields below. All are optional in an update request.
+
+<ParamField body="no_siniestro" type="string">
+  Reassign the levantamiento to a different siniestro / expediente.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Updated survey date. Accepts `"YYYY-MM-DD"` or `"DD/MM/YYYY"` format.
+</ParamField>
+
+<ParamField body="orden" type="string">
+  Work order reference.
+</ParamField>
+
+<ParamField body="marca" type="string">
+  Vehicle make.
+</ParamField>
+
+<ParamField body="tipo" type="string">
+  Vehicle body type.
+</ParamField>
+
+<ParamField body="modelo" type="string">
+  Vehicle model name.
+</ParamField>
+
+<ParamField body="placas" type="string">
+  License plate number.
+</ParamField>
+
+<ParamField body="kilometraje" type="string">
+  Odometer reading.
+</ParamField>
+
+<ParamField body="no_puertas" type="string">
+  Number of doors.
+</ParamField>
+
+<ParamField body="color" type="string">
+  Vehicle color.
+</ParamField>
+
+<ParamField body="serie" type="string">
+  Vehicle identification number (VIN).
+</ParamField>
+
+<ParamField body="eco" type="string">
+  Internal economic number.
+</ParamField>
+
+<ParamField body="asegurado_tercero" type="string">
+  Policy holder or third party indicator.
+</ParamField>
+
+<ParamField body="nombre_propietario" type="string">
+  Vehicle owner's full name.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Owner's contact phone.
+</ParamField>
+
+<ParamField body="direccion" type="string">
+  Owner's address.
+</ParamField>
+
+<ParamField body="pega" type="string">
+  Sticker or label reference.
+</ParamField>
+
+<ParamField body="cristales" type="boolean">
+  Glass / windshield damage flag.
+</ParamField>
+
+<ParamField body="aire" type="boolean">
+  A/C system damage flag.
+</ParamField>
+
+<ParamField body="vestiduras" type="boolean">
+  Upholstery damage flag.
+</ParamField>
+
+<ParamField body="rin" type="boolean">
+  Rim damage flag.
+</ParamField>
+
+<ParamField body="direccion_veh" type="boolean">
+  Steering system damage flag.
+</ParamField>
+
+<ParamField body="tipo_pintura" type="boolean">
+  Paint type / paint damage flag.
+</ParamField>
+
+<ParamField body="trasmision" type="boolean">
+  Transmission damage flag.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X PUT http://localhost:3000/api/levantamientos/42 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"kilometraje": "85000", "trasmision": true}'
+```
+
+## Response
+
+### 200 — Success
+
+Returns the full updated levantamiento object, including the unchanged `levantamiento_concepto` array.
+
+```json
+{
+  "id": 42,
+  "no_siniestro": "SIN-2024-001",
+  "fecha": "2024-01-15T12:00:00.000Z",
+  "orden": "ORD-0042",
+  "marca": "Toyota",
+  "tipo": "Sedán",
+  "modelo": "Corolla",
+  "placas": "ABC-1234",
+  "kilometraje": "85000",
+  "no_puertas": "4",
+  "color": "Blanco",
+  "serie": "1HGBH41JXMN109186",
+  "eco": "ECO-042",
+  "asegurado_tercero": "Asegurado",
+  "nombre_propietario": "Juan Pérez",
+  "telefono": "5551234567",
+  "direccion": "Calle Reforma 123, CDMX",
+  "pega": null,
+  "cristales": true,
+  "aire": false,
+  "vestiduras": false,
+  "rin": false,
+  "direccion_veh": false,
+  "tipo_pintura": true,
+  "trasmision": true,
+  "levantamiento_concepto": [
+    {
+      "id": 7,
+      "id_levantamiento": 42,
+      "claves": "CR-001",
+      "concepto": "Cambio de parabrisas",
+      "costo": "3500.00"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "id inválido" }` | The `:id` path segment is not a valid integer. |
+| `401`  | — | Missing or invalid `Authorization` header. |
+| `404`  | `{ "error": "Levantamiento no encontrado" }` | No levantamiento exists with the given ID. |

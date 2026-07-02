@@ -1,0 +1,219 @@
+---
+title: "Create and Manage Damage Surveys (Levantamiento de Daños)"
+sidebarTitle: "Damage Surveys"
+description: "Record vehicle damage with levantamiento de daños surveys. Add itemized cost concepts and calculate the total repair estimate for any expediente."
+---
+
+A *levantamiento de daños* is a damage survey linked to an expediente. It captures the vehicle's physical condition at the time of inspection — which systems are damaged, identifying details like mileage and VIN, and the owner's contact information — and contains an ordered list of cost *conceptos* (line items) representing each discrete repair task. The sum of all concept costs gives you the total repair estimate for that survey.
+
+<Note>
+  A single expediente can have **multiple** levantamientos. A common scenario is an initial survey at intake followed by a supplementary survey after disassembly reveals hidden damage. Each survey has its own independent list of cost concepts.
+</Note>
+
+## Creating a levantamiento
+
+`POST /api/levantamientos`
+
+The only required field is `no_siniestro`, which must match an existing expediente. All other fields are optional and can be updated later with `PUT /api/levantamientos/:id`.
+
+**Vehicle detail fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `fecha` | `string` | Inspection date. Accepts `DD/MM/YYYY` or `YYYY-MM-DD`. |
+| `orden` | `string` | Work order number. |
+| `marca` | `string` | Vehicle make (e.g. `Toyota`). |
+| `tipo` | `string` | Body type (e.g. `Sedan`). |
+| `modelo` | `string` | Model name (e.g. `Corolla`). |
+| `placas` | `string` | License plate. |
+| `kilometraje` | `string` | Odometer reading at inspection. |
+| `no_puertas` | `string` | Number of doors. |
+| `color` | `string` | Vehicle color. |
+| `serie` | `string` | VIN / chassis serial number. |
+| `eco` | `string` | Fleet / eco number (if applicable). |
+| `nombre_propietario` | `string` | Owner's name. |
+| `telefono` | `string` | Owner's phone number. |
+| `direccion` | `string` | Owner's address. |
+
+**Damage boolean fields** — set to `true` for each system that is damaged:
+
+| Field | System |
+|---|---|
+| `cristales` | Glass / windows |
+| `aire` | Air conditioning |
+| `vestiduras` | Upholstery / interior trim |
+| `rin` | Wheels / rims |
+| `direccion_veh` | Steering system |
+| `tipo_pintura` | Paint type affected |
+| `trasmision` | Transmission |
+
+```bash
+curl -X POST http://localhost:3000/api/levantamientos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "no_siniestro": "SIN-2024-001",
+    "marca": "Toyota",
+    "modelo": "Corolla",
+    "fecha": "2024-01-15",
+    "cristales": true,
+    "aire": false
+  }'
+```
+
+**Success response** — `201 Created`:
+
+```json
+{
+  "id": 42,
+  "no_siniestro": "SIN-2024-001",
+  "marca": "Toyota",
+  "modelo": "Corolla",
+  "fecha": "2024-01-15T12:00:00.000Z",
+  "cristales": true,
+  "aire": false,
+  "levantamiento_concepto": []
+}
+```
+
+Returns `400` if `no_siniestro` is missing or does not match any existing expediente.
+
+## Adding cost concepts
+
+`POST /api/levantamientos/:id/conceptos`
+
+Add a line-item repair cost to an existing levantamiento. Each concept represents one discrete repair task or part replacement.
+
+| Field | Required | Description |
+|---|---|---|
+| `concepto` | ✅ | Human-readable description of the repair item. |
+| `claves` | ❌ | Internal item code or parts catalogue key. |
+| `costo` | ❌ | Cost in decimal currency (stored as `Decimal` in the database). |
+
+```bash
+curl -X POST http://localhost:3000/api/levantamientos/42/conceptos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "concepto": "Cambio de parabrisas",
+    "claves": "CR-001",
+    "costo": 3500.00
+  }'
+```
+
+**Success response** — `201 Created`:
+
+```json
+{
+  "id": 101,
+  "id_levantamiento": 42,
+  "claves": "CR-001",
+  "concepto": "Cambio de parabrisas",
+  "costo": "3500.00"
+}
+```
+
+Returns `404` if the levantamiento with the given `id` does not exist, and `400` if `concepto` is omitted.
+
+## Calculating the total cost
+
+`GET /api/levantamientos/:id/costo-total`
+
+Returns the sum of all `costo` values across every concept belonging to the levantamiento. Useful for displaying a quick repair estimate without fetching the full concept list.
+
+```bash
+curl http://localhost:3000/api/levantamientos/42/costo-total \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+
+```json
+{
+  "id_levantamiento": 42,
+  "total": 3500
+}
+```
+
+`total` is a numeric value. Returns `404` if the levantamiento does not exist.
+
+## Fetching levantamientos
+
+<CardGroup cols={2}>
+  <Card title="List all (with optional filter)" icon="list">
+    `GET /api/levantamientos`
+
+    Returns all levantamientos, each with its `levantamiento_concepto` array included, ordered by `id` descending.
+
+    Filter by claim using the query parameter:
+
+    `GET /api/levantamientos?no_siniestro=SIN-2024-001`
+  </Card>
+  <Card title="Get by ID" icon="hashtag">
+    `GET /api/levantamientos/:id`
+
+    Returns a single levantamiento by its numeric `id`, including its concepts and the linked `expediente` object. Returns `404` if not found.
+  </Card>
+  <Card title="Get by siniestro" icon="car-burst">
+    `GET /api/levantamientos/siniestro/:no_siniestro`
+
+    Returns the **most recent** levantamiento for the given `no_siniestro` (ordered by `id` descending), including its concepts. Returns `404` if none exists.
+  </Card>
+</CardGroup>
+
+## Updating a levantamiento
+
+`PUT /api/levantamientos/:id`
+
+Performs a partial update on the levantamiento's own fields. Only include the fields you want to change; all others remain unchanged. The `fecha` field accepts the same `DD/MM/YYYY` or `YYYY-MM-DD` formats as on creation.
+
+```bash
+curl -X PUT http://localhost:3000/api/levantamientos/42 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kilometraje": "45320",
+    "rin": true
+  }'
+```
+
+Returns the updated levantamiento with its concepts. Returns `404` if not found.
+
+## Deleting levantamientos and concepts
+
+Both deletion endpoints require the **Administrador** role.
+
+<CardGroup cols={2}>
+  <Card title="Delete a levantamiento" icon="trash">
+    `DELETE /api/levantamientos/:id`
+
+    Deletes the levantamiento and **all its concepts** in a single transaction.
+
+    ```bash
+    curl -X DELETE http://localhost:3000/api/levantamientos/42 \
+      -H "Authorization: Bearer $TOKEN"
+    ```
+
+    **Response:**
+
+    ```json
+    { "mensaje": "Levantamiento y conceptos eliminados correctamente" }
+    ```
+  </Card>
+  <Card title="Delete a single concept" icon="circle-minus">
+    `DELETE /api/levantamientos/conceptos/:id_concepto`
+
+    Removes one line-item concept without affecting the parent levantamiento or its other concepts.
+
+    ```bash
+    curl -X DELETE http://localhost:3000/api/levantamientos/conceptos/101 \
+      -H "Authorization: Bearer $TOKEN"
+    ```
+
+    **Response:**
+
+    ```json
+    { "mensaje": "Concepto eliminado correctamente" }
+    ```
+  </Card>
+</CardGroup>

@@ -1,0 +1,139 @@
+---
+title: "DELETE /api/expedientes/:no_siniestro/evidencias — Remove Evidence Files"
+sidebarTitle: "DELETE /evidencias"
+description: "Delete a single evidence record by ID, or remove the entire evidence folder for an expediente. Single deletion requires Administrador; folder deletion requires Administrador or Operador."
+---
+
+Monitor API provides two evidence deletion endpoints: one to delete a single file record by ID, and one to remove the entire evidence folder for an expediente (typically used when rolling back a claim creation). Both endpoints require authentication; role requirements differ between them.
+
+---
+
+## Delete a Single Evidence File
+
+```
+DELETE /api/expedientes/:no_siniestro/evidencias/:id
+```
+
+**Authentication:** Bearer token required. Only the `Administrador` role may call this endpoint.
+
+Deletes the evidence record from the database **and** attempts to remove the physical file from disk. If the stored `ruta` path exists on the filesystem, the file is deleted with `fs.unlinkSync` before the database record is removed.
+
+<Note>
+  Physical file deletion is a best-effort operation — if the file is already missing from disk, the deletion proceeds and the database record is still removed without error.
+</Note>
+
+### Path Parameters
+
+<ParamField path="no_siniestro" type="string" required>
+  The siniestro number of the parent expediente (e.g. `SIN-2024-001`).
+</ParamField>
+
+<ParamField path="id" type="integer" required>
+  Numeric ID of the evidencia record to delete. Returns `400` if the value cannot be parsed as an integer, and `404` if no record with that ID exists.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001/evidencias/42 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Response
+
+#### 200 — Success
+
+Returns a confirmation object when the record has been deleted.
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on successful deletion.
+</ResponseField>
+
+```json
+{ "ok": true }
+```
+
+### Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400`  | `id` is missing or cannot be coerced to an integer, or `no_siniestro` is not a valid string. |
+| `401`  | Missing or invalid Bearer token. |
+| `403`  | Authenticated user does not have the `Administrador` role. |
+| `404`  | No evidencia record with the given `id` was found. |
+| `500`  | Internal server error — check server logs. |
+
+```json
+// 400 — bad ID
+{ "error": "ID inválido" }
+
+// 400 — bad siniestro
+{ "error": "Número de siniestro inválido" }
+
+// 404
+{ "error": "Evidencia no encontrada" }
+
+// 500
+{ "error": "Error interno al eliminar evidencia" }
+```
+
+---
+
+## Delete the Entire Evidence Folder
+
+```
+DELETE /api/expedientes/:no_siniestro/evidencias
+```
+
+**Authentication:** Bearer token required. `Administrador` and `Operador` roles may call this endpoint.
+
+Recursively removes the `evidencias/<no_siniestro>/` directory and all of its contents from disk using `fs.rm({ recursive: true, force: true })`. This wipes both the `evidencias/` (photos) and `DOCUMENTOS REPARACION/` subfolders in a single operation. Database records are **not** removed by this endpoint — use [Delete a Single Evidence File](#delete-a-single-evidence-file) to clean up individual DB rows if needed.
+
+<Warning>
+  This operation is **irreversible**. All files uploaded for the expediente — photos and documents alike — are permanently deleted from disk. There is no undo. Use this endpoint only when intentionally rolling back a claim, such as during a failed expediente creation workflow.
+</Warning>
+
+### Path Parameters
+
+<ParamField path="no_siniestro" type="string" required>
+  The siniestro number of the expediente whose evidence folder should be removed (e.g. `SIN-2024-001`). The server validates that the resolved path stays within the `EVIDENCIAS_BASE` directory to prevent path traversal attacks.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Response
+
+#### 200 — Success
+
+<ResponseField name="ok" type="boolean">
+  Always `true` when the folder has been removed (or did not exist — `force: true` suppresses "not found" errors).
+</ResponseField>
+
+```json
+{ "ok": true }
+```
+
+### Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400`  | `no_siniestro` is not a valid string, or the resolved path falls outside `EVIDENCIAS_BASE` (path traversal guard). |
+| `401`  | Missing or invalid Bearer token. |
+| `403`  | Authenticated user does not have the `Administrador` or `Operador` role. |
+| `500`  | Filesystem error while removing the directory — check server logs. |
+
+```json
+// 400 — bad siniestro
+{ "error": "Número de siniestro inválido" }
+
+// 400 — path traversal blocked
+{ "error": "Ruta inválida" }
+
+// 500
+{ "error": "No se pudo eliminar la carpeta" }
+```

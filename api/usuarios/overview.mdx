@@ -1,0 +1,217 @@
+---
+title: "Users API — List, Read, Update, and Delete System Users"
+sidebarTitle: "Users API"
+description: "Manage Monitor API user accounts. All user management endpoints require an active Administrador JWT token. Supports CRUD operations on the usuario resource."
+---
+
+The Users API allows Administrators to manage system accounts — list all users, retrieve a specific user, update their profile or role, and delete accounts. Every endpoint in this group is protected by two middleware layers: `verificarToken` (validates the JWT) and `soloAdmin` (asserts the `Administrador` role). Any request missing a valid token or issued from a non-Admin account will be rejected before the controller is reached.
+
+All four endpoints require an `Authorization: Bearer <token>` header where the token belongs to a user with the **Administrador** role.
+
+<Warning>
+  The `password_hash` field is **never** returned in any response from the Users API. Prisma selects only `id`, `nombre`, `username`, and `rol` on every query — the hash is permanently excluded at the service layer.
+</Warning>
+
+<Note>
+  To create a new user account, use `POST /api/auth/register` (the auth routes). The `/api/usuarios` endpoints only support reading, updating, and deleting existing accounts.
+</Note>
+
+---
+
+## GET /api/usuarios
+
+Returns a flat array of every user registered in the system, ordered by `id` ascending.
+
+```bash
+curl http://localhost:3000/api/usuarios \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Response — 200 OK
+
+```json
+[
+  { "id": 1, "nombre": "Admin", "username": "admin", "rol": "Administrador" },
+  { "id": 2, "nombre": "María", "username": "mlopez", "rol": "Operador" }
+]
+```
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key of the user record.
+</ResponseField>
+
+<ResponseField name="nombre" type="string | null">
+  Human-readable display name of the user. May be `null` if not set during registration.
+</ResponseField>
+
+<ResponseField name="username" type="string">
+  Unique login handle. No whitespace allowed. Used as the credential identifier at login.
+</ResponseField>
+
+<ResponseField name="rol" type="string">
+  Role assigned to the user. One of `Administrador`, `Operador`, or `Tecnico`.
+</ResponseField>
+
+---
+
+## GET /api/usuarios/:id
+
+Retrieves a single user by their numeric database ID.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric ID of the user to retrieve. Must be a valid integer. Returns `400` if not parseable and `404` if no user with that ID exists.
+</ParamField>
+
+```bash
+curl http://localhost:3000/api/usuarios/2 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Response — 200 OK
+
+```json
+{ "id": 2, "nombre": "María", "username": "mlopez", "rol": "Operador" }
+```
+
+<ResponseField name="id" type="integer">
+  The user's primary key.
+</ResponseField>
+
+<ResponseField name="nombre" type="string | null">
+  Display name of the user.
+</ResponseField>
+
+<ResponseField name="username" type="string">
+  Unique login handle.
+</ResponseField>
+
+<ResponseField name="rol" type="string">
+  Role of the user: `Administrador`, `Operador`, or `Tecnico`.
+</ResponseField>
+
+### Error Responses
+
+| Status | Body                                    | Cause                                   |
+| ------ | --------------------------------------- | --------------------------------------- |
+| `400`  | `{ "error": "ID inválido" }`            | `:id` could not be parsed as an integer |
+| `404`  | `{ "error": "Usuario no encontrado" }`  | No user found with the given ID         |
+| `401`  | `{ "error": "Token requerido" }`        | Missing or malformed JWT                |
+| `403`  | `{ "error": "Acceso denegado" }`        | Token is valid but role is not Admin    |
+
+---
+
+## PUT /api/usuarios/:id
+
+Updates one or more fields on an existing user account. All body fields are optional — only the fields provided will be changed. If `password` is supplied it is re-hashed with bcrypt (10 rounds) before being stored.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric ID of the user to update. Returns `400` if not parseable as an integer.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="nombre" type="string">
+  New display name for the user. Replaces the current value; may be set to an empty string to clear it.
+</ParamField>
+
+<ParamField body="username" type="string">
+  New unique login handle. Must not contain any whitespace characters. Returns `400` if whitespace is detected. Returns `400` if the username is already taken by another account.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New plain-text password. The service automatically hashes it with `bcrypt.hash(password, 10)` before writing to `password_hash`. The plain-text value is never persisted.
+</ParamField>
+
+<ParamField body="rol" type="string">
+  New role for the user. Must be exactly one of: `Administrador`, `Operador`, `Tecnico`. Any other value returns `400`.
+</ParamField>
+
+```bash
+curl -X PUT http://localhost:3000/api/usuarios/2 \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"rol": "Administrador", "nombre": "María López"}'
+```
+
+### Response — 200 OK
+
+Returns the full updated user object (same shape as the read endpoints — no `password_hash`).
+
+```json
+{ "id": 2, "nombre": "María López", "username": "mlopez", "rol": "Administrador" }
+```
+
+<ResponseField name="id" type="integer">
+  The user's primary key.
+</ResponseField>
+
+<ResponseField name="nombre" type="string | null">
+  Updated display name.
+</ResponseField>
+
+<ResponseField name="username" type="string">
+  Updated (or unchanged) login handle.
+</ResponseField>
+
+<ResponseField name="rol" type="string">
+  Updated (or unchanged) role.
+</ResponseField>
+
+### Error Responses
+
+| Status | Body                                               | Cause                                              |
+| ------ | -------------------------------------------------- | -------------------------------------------------- |
+| `400`  | `{ "error": "ID inválido" }`                       | `:id` is not a valid integer                       |
+| `400`  | `{ "error": "Rol inválido. Debe ser: …" }`         | `rol` value is not one of the three permitted roles |
+| `400`  | `{ "error": "El usuario no puede contener espacios" }` | `username` contains whitespace                 |
+| `400`  | `{ "error": "El username ya está en uso" }`        | Another account already uses the requested username |
+| `400`  | `{ "error": "Usuario no encontrado" }`             | No user with the given `:id` exists                |
+| `401`  | `{ "error": "Token requerido" }`                   | Missing or malformed JWT                           |
+| `403`  | `{ "error": "Acceso denegado" }`                   | Authenticated user does not have the Admin role    |
+
+---
+
+## DELETE /api/usuarios/:id
+
+Permanently deletes a user account from the database. Administrators cannot delete their own account — the middleware compares the token's `id` claim against the `:id` parameter and returns `400` if they match.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric ID of the user to delete. Returns `400` if not parseable as an integer.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:3000/api/usuarios/3 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Response — 200 OK
+
+Returns a confirmation object with `ok: true` and the deleted record's ID.
+
+```json
+{ "ok": true, "id": 3 }
+```
+
+<ResponseField name="ok" type="boolean">
+  Always `true` on a successful deletion.
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The ID of the user that was deleted.
+</ResponseField>
+
+### Error Responses
+
+| Status | Body                                               | Cause                                                        |
+| ------ | -------------------------------------------------- | ------------------------------------------------------------ |
+| `400`  | `{ "error": "No puedes eliminar tu propia cuenta" }` | The requesting Admin's own ID matches the target `:id`      |
+| `400`  | `{ "error": "ID inválido" }`                       | `:id` cannot be parsed as an integer                         |
+| `400`  | `{ "error": "Usuario no encontrado" }`             | No user with the given `:id` exists in the database          |
+| `401`  | `{ "error": "Token requerido" }`                   | Missing or malformed JWT                                     |
+| `403`  | `{ "error": "Acceso denegado" }`                   | Authenticated user does not have the `Administrador` role    |

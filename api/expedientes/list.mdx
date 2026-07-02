@@ -1,0 +1,191 @@
+---
+title: "GET /api/expedientes — List All Insurance Claim Records"
+sidebarTitle: "GET /expedientes"
+description: "Retrieve all expediente records. Returns an array of claim objects including vehicle info, status, assigned insurer, and key dates. Requires authentication."
+---
+
+Retrieve every expediente stored in Monitor API. The response is a summary array ordered by `fecha_ingreso` descending — it omits heavy nested relations to keep list payloads small. All authenticated roles (Administrador, Operador, Técnico) can call this endpoint.
+
+---
+
+## Endpoint
+
+```
+GET /api/expedientes
+```
+
+**Authentication:** Bearer token required (any role).
+
+<Note>
+  Técnico-role users have read-only access. They may call this endpoint but cannot create, update, or delete records.
+</Note>
+
+---
+
+## Request
+
+No path parameters, query parameters, or request body.
+
+```bash
+curl http://localhost:3000/api/expedientes \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## Response — 200 OK
+
+Returns a JSON array of summary expediente objects. Each element contains the fields below.
+
+<ResponseField name="[].no_siniestro" type="string">
+  Primary key. The unique claim (siniestro) number assigned to this expediente (e.g. `"SIN-2024-001"`).
+</ResponseField>
+
+<ResponseField name="[].factura" type="string | null">
+  Invoice number associated with the repair order.
+</ResponseField>
+
+<ResponseField name="[].orden" type="string | null">
+  Internal work-order number.
+</ResponseField>
+
+<ResponseField name="[].asesor" type="string | null">
+  Name of the service advisor handling this claim.
+</ResponseField>
+
+<ResponseField name="[].fecha_ingreso" type="string (ISO date) | null">
+  Date the vehicle was received. Stored as a `Date` (no time component). Example: `"2024-03-15T12:00:00.000Z"`.
+</ResponseField>
+
+<ResponseField name="[].estado" type="string (estado_enum)">
+  Current workflow status. One of:
+
+  | Value | Meaning |
+  |---|---|
+  | `Ingreso` | Vehicle has just been received |
+  | `Restauracion` | Active repair / restoration |
+  | `Pendiente_de_salida` | Repair complete, awaiting release |
+  | `Salida` | Vehicle has been returned to owner |
+</ResponseField>
+
+<ResponseField name="[].marca" type="string | null">
+  Vehicle make (e.g. `"Toyota"`).
+</ResponseField>
+
+<ResponseField name="[].modelo" type="string | null">
+  Vehicle model (e.g. `"Corolla"`).
+</ResponseField>
+
+<ResponseField name="[].tipo" type="string | null">
+  Vehicle body type or trim level (e.g. `"Sedán"`, `"SUV"`).
+</ResponseField>
+
+<ResponseField name="[].color" type="string | null">
+  Vehicle color (e.g. `"Blanco"`).
+</ResponseField>
+
+<ResponseField name="[].placas" type="string | null">
+  License plate number.
+</ResponseField>
+
+<ResponseField name="[].nombre_cliente" type="string | null">
+  Full name of the vehicle owner / policyholder.
+</ResponseField>
+
+<ResponseField name="[].telefono_cliente" type="string | null">
+  Client contact phone number.
+</ResponseField>
+
+<ResponseField name="[].aseguradora" type="object | null">
+  Condensed insurer record. `null` when no insurer is linked.
+
+  <Expandable title="aseguradora fields">
+    <ResponseField name="id" type="integer">
+      Insurer's auto-incremented primary key.
+    </ResponseField>
+
+    <ResponseField name="nombre" type="string | null">
+      Display name of the insurance company.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response body
+
+```json
+[
+  {
+    "no_siniestro": "SIN-2024-001",
+    "factura": "F-00123",
+    "orden": "OT-2024-045",
+    "asesor": "María López",
+    "fecha_ingreso": "2024-03-15T12:00:00.000Z",
+    "estado": "Restauracion",
+    "marca": "Toyota",
+    "modelo": "Corolla",
+    "tipo": "Sedán",
+    "color": "Blanco",
+    "placas": "ABC-123",
+    "nombre_cliente": "Juan García",
+    "telefono_cliente": "555-100-2000",
+    "aseguradora": {
+      "id": 1,
+      "nombre": "GNP Seguros"
+    }
+  }
+]
+```
+
+---
+
+## Error responses
+
+| Status | Body | Cause |
+|---|---|---|
+| `401` | `{ "error": "Token requerido" }` | Missing or malformed `Authorization` header |
+| `401` | `{ "error": "Token inválido o expirado" }` | JWT verification failed |
+| `500` | `{ "error": "Error al obtener la lista de expedientes" }` | Database or internal error |
+
+---
+
+## Related endpoint — List Insurers
+
+```
+GET /api/expedientes/aseguradoras
+```
+
+Returns the catalogue of insurance companies for use in create / filter UIs. Requires the same Bearer token.
+
+<Note>
+  This route is registered **before** `/:no_siniestro` in the router so Express never interprets the literal string `aseguradoras` as a siniestro number.
+</Note>
+
+```bash
+curl http://localhost:3000/api/expedientes/aseguradoras \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Response — 200 OK
+
+Returns a JSON array ordered alphabetically by `nombre`.
+
+<ResponseField name="[].id" type="integer">
+  Auto-incremented primary key of the insurer.
+</ResponseField>
+
+<ResponseField name="[].nombre" type="string | null">
+  Display name of the insurance company.
+</ResponseField>
+
+```json
+[
+  { "id": 3, "nombre": "AXA Seguros" },
+  { "id": 1, "nombre": "GNP Seguros" },
+  { "id": 2, "nombre": "Qualitas" }
+]
+```
+
+| Status | Body | Cause |
+|---|---|---|
+| `401` | `{ "error": "Token requerido" }` | Missing or malformed `Authorization` header |
+| `500` | `{ "error": "Error al obtener la lista de aseguradoras" }` | Database or internal error |

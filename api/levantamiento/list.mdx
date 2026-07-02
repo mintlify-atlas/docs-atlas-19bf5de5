@@ -1,0 +1,199 @@
+---
+title: "GET /api/levantamientos — List Damage Survey Records"
+sidebarTitle: "GET /levantamientos"
+description: "Retrieve all levantamiento de daños records. Optionally filter by siniestro number using the no_siniestro query parameter. Requires authentication."
+---
+
+List all damage surveys stored in Monitor API, optionally filtered by claim number. Results are returned in descending order by `id` (most recent first) and always include nested cost concepts.
+
+## Endpoint
+
+```
+GET /api/levantamientos
+```
+
+All requests must include a valid Bearer token. Any authenticated role (`Administrador`, `Operador`, `Tecnico`) may call this endpoint.
+
+## Query Parameters
+
+<ParamField query="no_siniestro" type="string">
+  Filter results to levantamientos linked to this siniestro number. When omitted, all records are returned. The value must match the `no_siniestro` field on an existing `expediente`.
+
+  **Example:** `SIN-2024-001`
+</ParamField>
+
+## Request Examples
+
+```bash
+# List all levantamientos
+curl http://localhost:3000/api/levantamientos \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```bash
+# Filter by siniestro number
+curl "http://localhost:3000/api/levantamientos?no_siniestro=SIN-2024-001" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Response
+
+### 200 — Success
+
+Returns an array of levantamiento objects. The array is empty (`[]`) when no records match the filter.
+
+```json
+[
+  {
+    "id": 42,
+    "no_siniestro": "SIN-2024-001",
+    "fecha": "2024-01-15T12:00:00.000Z",
+    "orden": "ORD-0042",
+    "marca": "Toyota",
+    "tipo": "Sedán",
+    "modelo": "Corolla",
+    "placas": "ABC-1234",
+    "kilometraje": "84500",
+    "no_puertas": "4",
+    "color": "Blanco",
+    "serie": "1HGBH41JXMN109186",
+    "eco": "ECO-042",
+    "asegurado_tercero": "Asegurado",
+    "nombre_propietario": "Juan Pérez",
+    "telefono": "5551234567",
+    "direccion": "Calle Reforma 123, CDMX",
+    "pega": null,
+    "cristales": true,
+    "aire": false,
+    "vestiduras": false,
+    "rin": false,
+    "direccion_veh": false,
+    "tipo_pintura": true,
+    "trasmision": false,
+    "levantamiento_concepto": [
+      {
+        "id": 7,
+        "id_levantamiento": 42,
+        "claves": "CR-001",
+        "concepto": "Cambio de parabrisas",
+        "costo": "3500.00"
+      }
+    ]
+  }
+]
+```
+
+<Expandable title="Response fields">
+
+  <ResponseField name="id" type="integer">
+    Auto-incremented primary key for the levantamiento.
+  </ResponseField>
+
+  <ResponseField name="no_siniestro" type="string | null">
+    The claim number this survey is linked to. References an `expediente.no_siniestro`.
+  </ResponseField>
+
+  <ResponseField name="fecha" type="string | null">
+    Date the survey was conducted, stored as a PostgreSQL `Date` and serialized as an ISO 8601 timestamp.
+  </ResponseField>
+
+  <ResponseField name="orden" type="string | null">
+    Internal work order reference.
+  </ResponseField>
+
+  <ResponseField name="marca" type="string | null">
+    Vehicle make, e.g. `"Toyota"`.
+  </ResponseField>
+
+  <ResponseField name="tipo" type="string | null">
+    Vehicle body type, e.g. `"Sedán"` or `"SUV"`.
+  </ResponseField>
+
+  <ResponseField name="modelo" type="string | null">
+    Vehicle model name, e.g. `"Corolla"`.
+  </ResponseField>
+
+  <ResponseField name="placas" type="string | null">
+    License plate number.
+  </ResponseField>
+
+  <ResponseField name="kilometraje" type="string | null">
+    Odometer reading at the time of the survey.
+  </ResponseField>
+
+  <ResponseField name="no_puertas" type="string | null">
+    Number of doors, stored as a string, e.g. `"4"`.
+  </ResponseField>
+
+  <ResponseField name="color" type="string | null">
+    Vehicle color.
+  </ResponseField>
+
+  <ResponseField name="serie" type="string | null">
+    Vehicle identification number (VIN / número de serie).
+  </ResponseField>
+
+  <ResponseField name="eco" type="string | null">
+    Internal economic number assigned to the vehicle.
+  </ResponseField>
+
+  <ResponseField name="asegurado_tercero" type="string | null">
+    Whether the claim is for the policy holder or a third party. Typical values: `"Asegurado"`, `"Tercero"`.
+  </ResponseField>
+
+  <ResponseField name="nombre_propietario" type="string | null">
+    Full name of the vehicle owner.
+  </ResponseField>
+
+  <ResponseField name="telefono" type="string | null">
+    Contact phone number of the vehicle owner.
+  </ResponseField>
+
+  <ResponseField name="direccion" type="string | null">
+    Address of the vehicle owner.
+  </ResponseField>
+
+  <ResponseField name="pega" type="string | null">
+    Auxiliary field for sticker or label reference.
+  </ResponseField>
+
+  <ResponseField name="cristales" type="boolean | null">
+    Indicates glass / windshield damage.
+  </ResponseField>
+
+  <ResponseField name="aire" type="boolean | null">
+    Indicates air conditioning system damage.
+  </ResponseField>
+
+  <ResponseField name="vestiduras" type="boolean | null">
+    Indicates upholstery damage.
+  </ResponseField>
+
+  <ResponseField name="rin" type="boolean | null">
+    Indicates wheel rim damage.
+  </ResponseField>
+
+  <ResponseField name="direccion_veh" type="boolean | null">
+    Indicates steering system damage.
+  </ResponseField>
+
+  <ResponseField name="tipo_pintura" type="boolean | null">
+    Indicates paint type or paint damage flag.
+  </ResponseField>
+
+  <ResponseField name="trasmision" type="boolean | null">
+    Indicates transmission damage.
+  </ResponseField>
+
+  <ResponseField name="levantamiento_concepto" type="array">
+    Array of itemized repair cost concepts attached to this survey. See [Conceptos](/api/levantamiento/conceptos) for details on the shape of each item.
+  </ResponseField>
+
+</Expandable>
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Missing or invalid `Authorization` header. |
+| `500`  | Unexpected server error. |

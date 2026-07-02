@@ -1,0 +1,334 @@
+---
+title: "Monitor API Data Model: Schema and Relationships"
+sidebarTitle: "Data Model"
+description: "Explore the PostgreSQL schema powering Monitor API — expedientes, evidencias, levantamiento de daños, checklists, usuarios, and aseguradoras with their relationships."
+---
+
+Monitor API is backed by a PostgreSQL database managed with Prisma ORM. The schema models the complete lifecycle of an auto-body insurance claim — from initial intake through damage assessment, evidence collection, inspection checklists, and final status transitions. All models are defined in `prisma/schema.prisma`.
+
+## Entity Overview
+
+<CardGroup cols={2}>
+  <Card title="expediente" icon="folder">
+    The central claim record. Every other entity in the schema links back to an expediente via its primary key, `no_siniestro` (the accident/claim number).
+  </Card>
+  <Card title="levantamiento_danios" icon="clipboard-list">
+    A damage survey record linked to an expediente. Captures vehicle condition flags and a list of cost line items (`levantamiento_concepto`).
+  </Card>
+  <Card title="evidencia" icon="image">
+    Metadata for an uploaded file (photo, document, etc.) associated with an expediente. Tracks storage location, MIME type, and the user who uploaded it.
+  </Card>
+  <Card title="checklist" icon="check-square">
+    An inspection checklist linked to an expediente. Records inspector, assigned staff, condition flags, deductible, and delivery details.
+  </Card>
+  <Card title="aseguradora" icon="building">
+    An insurance company record. Expedientes reference an aseguradora to associate the claim with the issuing insurer.
+  </Card>
+  <Card title="usuario" icon="user">
+    A system user with an assigned role (`Administrador`, `Operador`, or `Tecnico`). Linked to expedientes they created, evidence they uploaded, and state changes they triggered.
+  </Card>
+</CardGroup>
+
+---
+
+## Models
+
+### expediente
+
+The root entity of the schema. Its primary key, `no_siniestro`, is a human-readable claim identifier rather than an auto-incremented integer, reflecting the domain convention.
+
+<ResponseField name="no_siniestro" type="String" required>
+  Primary key. The claim or accident number used across the entire system to link every related record.
+</ResponseField>
+
+<ResponseField name="estado" type="estado_enum" required>
+  Current lifecycle stage of the claim. Defaults to `Ingreso`. Valid values: `Ingreso`, `Restauracion`, `Pendiente_de_salida`, `Salida`. Every state change is automatically recorded in `historial_estado`.
+</ResponseField>
+
+<ResponseField name="ubicacion_almacenamiento" type="ubicacion_enum" required>
+  Indicates where files for this claim are stored. Defaults to `Local`. Valid values: `Local`, `Nube`.
+</ResponseField>
+
+<ResponseField name="id_aseguradora" type="Int?">
+  Foreign key to the `aseguradora` table. Nullable — a claim may be entered before the insurer is identified.
+</ResponseField>
+
+<ResponseField name="creado_por" type="Int?">
+  Foreign key to the `usuario` table. Records which user created this expediente.
+</ResponseField>
+
+<Expandable title="Vehicle fields">
+  <ResponseField name="marca" type="String?">Make of the vehicle (e.g. `"Toyota"`).</ResponseField>
+  <ResponseField name="modelo" type="String?">Model year or model name.</ResponseField>
+  <ResponseField name="tipo" type="String?">Body type (e.g. `"Sedán"`, `"SUV"`).</ResponseField>
+  <ResponseField name="color" type="String?">Vehicle colour.</ResponseField>
+  <ResponseField name="placas" type="String?">License plate number.</ResponseField>
+  <ResponseField name="vehiculo" type="String?">Free-text full vehicle description.</ResponseField>
+</Expandable>
+
+<Expandable title="Client fields">
+  <ResponseField name="nombre_cliente" type="String?">Full name of the vehicle owner / claimant.</ResponseField>
+  <ResponseField name="telefono_cliente" type="String?">Contact phone number.</ResponseField>
+  <ResponseField name="correo_cliente" type="String?">Contact email address.</ResponseField>
+</Expandable>
+
+<Expandable title="Key date fields">
+  <ResponseField name="fecha_ingreso" type="Date?">Date the vehicle was received at the shop.</ResponseField>
+  <ResponseField name="fecha_valuacion" type="Date?">Date the damage valuation was completed.</ResponseField>
+  <ResponseField name="fecha_autorizacion" type="Date?">Date the insurer authorised the repair.</ResponseField>
+  <ResponseField name="fecha_pzas_completas" type="Date?">Date all parts were confirmed as received.</ResponseField>
+  <ResponseField name="unidad_terminada" type="Date?">Date the repair was completed.</ResponseField>
+</Expandable>
+
+<Expandable title="Document checklist booleans">
+  Each field records whether the corresponding physical document has been received from the client.
+
+  | Field | Document |
+  |---|---|
+  | `doc_orden_admision` | Admission order |
+  | `doc_identificacion` | Official ID |
+  | `doc_tarjeta_circulacion` | Vehicle registration card |
+  | `doc_caratula_poliza` | Policy cover page |
+  | `doc_carta_reparacion` | Repair authorisation letter |
+  | `doc_comprobante_deducible` | Deductible payment proof |
+  | `doc_finiquito` | Settlement document |
+  | `doc_encuesta_servicio` | Service satisfaction survey |
+</Expandable>
+
+---
+
+### levantamiento_danios
+
+A damage survey record created when a technician inspects the vehicle. One expediente can have multiple levantamiento records.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="String?">
+  Foreign key to the parent `expediente`.
+</ResponseField>
+
+<ResponseField name="fecha" type="Date?">
+  Date the survey was performed.
+</ResponseField>
+
+<Expandable title="Vehicle condition flags (Boolean)">
+  Boolean flags indicating which vehicle systems were inspected or flagged as damaged.
+
+  | Field | Meaning |
+  |---|---|
+  | `cristales` | Glass / windows |
+  | `aire` | Air conditioning |
+  | `vestiduras` | Upholstery / interior trim |
+  | `rin` | Wheel rims |
+  | `direccion_veh` | Steering system |
+  | `tipo_pintura` | Paint type noted |
+  | `trasmision` | Transmission |
+</Expandable>
+
+<ResponseField name="levantamiento_concepto" type="levantamiento_concepto[]">
+  Array of cost line items attached to this survey. See below.
+</ResponseField>
+
+---
+
+### levantamiento_concepto
+
+Individual cost line items within a damage survey.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="id_levantamiento" type="Int" required>
+  Foreign key to the parent `levantamiento_danios`.
+</ResponseField>
+
+<ResponseField name="claves" type="String?">
+  Item or part code used for cataloguing.
+</ResponseField>
+
+<ResponseField name="concepto" type="String?">
+  Human-readable description of the repair item or service.
+</ResponseField>
+
+<ResponseField name="costo" type="Decimal?">
+  Unit cost for this line item.
+</ResponseField>
+
+---
+
+### evidencia
+
+Metadata record for every file uploaded to a claim. The actual file is stored at the `ruta` path on the server (or in cloud storage), while this record tracks its origin and ownership.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="String" required>
+  Foreign key to the parent `expediente`.
+</ResponseField>
+
+<ResponseField name="tipo" type="String?">
+  MIME type of the uploaded file (e.g. `"image/jpeg"`, `"application/pdf"`).
+</ResponseField>
+
+<ResponseField name="nombre_archivo" type="String?">
+  Original filename as provided at upload time.
+</ResponseField>
+
+<ResponseField name="ruta" type="String?">
+  Path or identifier used to retrieve the file from local or cloud storage.
+</ResponseField>
+
+<ResponseField name="fecha_carga" type="Timestamp?">
+  Timestamp of upload. Defaults to `now()`.
+</ResponseField>
+
+<ResponseField name="ubicacion_almacenamiento" type="ubicacion_enum" required>
+  Where the file is stored — `Local` (default) or `Nube`.
+</ResponseField>
+
+<ResponseField name="subido_por" type="Int?">
+  Foreign key to the `usuario` who uploaded the file.
+</ResponseField>
+
+---
+
+### checklist
+
+An inspection checklist attached to an expediente. Captures the full pre-delivery / post-repair inspection record including assigned staff, condition assessments, and delivery sign-off.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="String?">
+  Foreign key to the parent `expediente`.
+</ResponseField>
+
+<ResponseField name="fecha_inspeccion" type="Date?">
+  Date of the inspection.
+</ResponseField>
+
+<ResponseField name="inspeccionado_por" type="String?">
+  Name of the person who performed the inspection.
+</ResponseField>
+
+<ResponseField name="aprobada" type="Boolean?">
+  Whether the checklist inspection was passed.
+</ResponseField>
+
+<ResponseField name="deducible" type="Decimal?">
+  Deductible amount recorded at inspection.
+</ResponseField>
+
+<ResponseField name="checklist_item" type="checklist_item[]">
+  Individual line items in the checklist (system name, item name, and value).
+</ResponseField>
+
+---
+
+### aseguradora
+
+Insurance company records referenced by expedientes.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="nombre" type="String?">
+  Name of the insurance company.
+</ResponseField>
+
+<ResponseField name="logo" type="Bytes?">
+  Optional binary logo image stored directly in the database.
+</ResponseField>
+
+---
+
+### usuario
+
+System users who authenticate with the API.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="nombre" type="String?">
+  Display name of the user.
+</ResponseField>
+
+<ResponseField name="username" type="String" required>
+  Unique login username. Cannot contain whitespace. Used as the login credential and embedded in the JWT.
+</ResponseField>
+
+<ResponseField name="password_hash" type="String" required>
+  bcrypt hash of the user's password. Never returned in API responses.
+</ResponseField>
+
+<ResponseField name="rol" type="rol_enum" required>
+  The user's role — `Administrador`, `Operador`, or `Tecnico`. Drives all authorization decisions.
+</ResponseField>
+
+---
+
+## Enums
+
+<ResponseField name="estado_enum" type="enum">
+  Tracks the lifecycle stage of an `expediente`.
+
+  | Value | Meaning |
+  |---|---|
+  | `Ingreso` | Vehicle received, claim opened |
+  | `Restauracion` | Actively under repair |
+  | `Pendiente_de_salida` | Repair complete, awaiting collection |
+  | `Salida` | Vehicle delivered, claim closed |
+</ResponseField>
+
+<ResponseField name="rol_enum" type="enum">
+  Defines which actions a `usuario` is permitted to perform.
+
+  | Value | Description |
+  |---|---|
+  | `Administrador` | Full system access |
+  | `Operador` | Create and update, no destructive actions |
+  | `Tecnico` | Read-only access |
+</ResponseField>
+
+<ResponseField name="ubicacion_enum" type="enum">
+  Indicates where files or data are physically stored.
+
+  | Value | Description |
+  |---|---|
+  | `Local` | Stored on the API server's filesystem |
+  | `Nube` | Stored in cloud/remote storage |
+</ResponseField>
+
+---
+
+## Relationships
+
+The following diagram summarises the entity relationships in plain text:
+
+```
+aseguradora ──< expediente >── usuario
+                    │
+        ┌───────────┼──────────────┐──────────────┐
+        │           │              │               │
+    evidencia  checklist  levantamiento_danios  historial_estado
+                                │
+                    levantamiento_concepto
+```
+
+- An **expediente** belongs to one `aseguradora` (nullable) and one `usuario` (the creator, nullable).
+- An **expediente** has many `evidencia`, `checklist`, `levantamiento_danios`, and `historial_estado` records.
+- A **levantamiento_danios** has many `levantamiento_concepto` line items.
+- A **checklist** has many `checklist_item` records.
+- A **usuario** is referenced by `evidencia` (uploader), `expediente` (creator), and `historial_estado` (who changed the state).
+
+<Note>
+  `historial_estado` automatically records every state transition on an expediente. Each row captures the previous state (`estado_anterior`), the new state (`estado_nuevo`), the exact timestamp (`fecha_cambio`, defaults to `now()`), and the ID of the user who triggered the change (`cambiado_por`). This gives a full, immutable audit trail of every status change for every claim.
+</Note>

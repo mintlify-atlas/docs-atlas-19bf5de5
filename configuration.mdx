@@ -1,0 +1,121 @@
+---
+title: "Configure Monitor API: Environment Variables and Options"
+sidebarTitle: "Configuration"
+description: "All environment variables accepted by Monitor API, including database connection, JWT secret, evidence storage path, and runtime port settings."
+---
+
+Monitor API is configured exclusively through environment variables, loaded at process startup via `dotenv/config` (the `import "dotenv/config"` call at the top of `src/server.ts`). Place your variables in a `.env` file at the project root — this file is read before any other initialization code runs. All required variables must be present before starting the server; missing values will cause Prisma or the auth middleware to throw at startup.
+
+## Environment Variables
+
+<ParamField body="DATABASE_URL" type="string" required>
+  PostgreSQL connection string passed directly to Prisma. Must point to a running PostgreSQL instance with a database that has had the Monitor schema applied via `prisma migrate deploy` or `prisma db push`.
+
+  ```bash
+  DATABASE_URL="postgresql://user:password@localhost:5432/monitor"
+  ```
+
+  Prisma supports the full `postgresql://` URI syntax including SSL parameters, connection pool size overrides, and Unix socket paths. Refer to the [Prisma connection URL docs](https://www.prisma.io/docs/orm/reference/connection-urls) for advanced options.
+</ParamField>
+
+<ParamField body="JWT_SECRET" type="string" required>
+  Secret key used to sign and verify all JWT tokens issued by `POST /api/auth/login`. Any request to a protected route is rejected if its token was signed with a different secret.
+
+  ```bash
+  JWT_SECRET="change-me-to-a-long-random-string"
+  ```
+
+  Tokens are signed with the HS256 algorithm and expire after **8 hours**. In production this value must be a cryptographically random string of at least 32 characters. See the warning below.
+</ParamField>
+
+<ParamField body="EVIDENCIAS_DIR" type="string">
+  Filesystem path where uploaded evidence files (photos, documents) are stored by `multer`. Resolved relative to `process.cwd()` at the time the server starts.
+
+  **Default:** `../evidencias`
+
+  ```bash
+  EVIDENCIAS_DIR="../evidencias"
+  ```
+
+  Point this to a directory with sufficient storage and appropriate backup coverage. The directory does not need to exist before starting the server — Monitor will attempt to create it if it's missing. The health check at startup (`checkEvidencias`) will warn if the path is inaccessible.
+</ParamField>
+
+<Warning>
+  **Never use a short, guessable, or default value for `JWT_SECRET` in production.** Anyone who obtains the secret can forge tokens for any user and role — including `Administrador`. Generate a long random value before deploying:
+
+  ```bash
+  # Generate a 64-character random secret (macOS / Linux)
+  openssl rand -hex 32
+  # or
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+
+  Store the result in your secrets manager (e.g. Doppler, AWS Secrets Manager, Vault) and inject it as an environment variable — never commit it to source control.
+</Warning>
+
+## Port
+
+The server always listens on **port `3000`** bound to `0.0.0.0` (all network interfaces). This is hardcoded in `src/server.ts`:
+
+```typescript
+const PORT = 3000;
+// ...
+app.listen(PORT, "0.0.0.0", () => { ... });
+```
+
+Port selection is **not currently configurable via an environment variable**. If you need to run Monitor on a different port (e.g. behind a reverse proxy or in a containerized environment), update the `PORT` constant in `src/server.ts` and rebuild.
+
+## Logging
+
+Monitor API uses a custom structured logger (`src/utils/logger.ts`) that writes to two destinations simultaneously on every log call:
+
+- **`logs/app.log`** — A plain-text append-only log file. Each line contains an ISO 8601 timestamp, log level, context label, message, and optional JSON-serialized data. The `logs/` directory is created automatically at startup if it does not exist.
+- **stdout** — Color-coded output for interactive terminals, using ANSI escape codes:
+
+  | Level | Color |
+  |---|---|
+  | `INFO` | Cyan |
+  | `WARN` | Yellow |
+  | `ERROR` | Red |
+  | `SUCCESS` | Green |
+
+  Context labels are printed in magenta and timestamps in grey for quick visual scanning.
+
+Example `logs/app.log` entries:
+
+```
+[2025-07-10T12:00:00.000Z] [SUCCESS] [Backend] Servidor iniciado | {"puerto":3000}
+[2025-07-10T12:00:00.000Z] [INFO] [Red] Servicio mDNS anunciado | {"tipo":"_monitor._tcp"}
+[2025-07-10T12:00:00.000Z] [INFO] [Red] IP local | {"ip":"192.168.1.42"}
+[2025-07-10T12:00:05.000Z] [INFO] [Sistema] ══════════ Verificación completada ══════════
+```
+
+There is currently no log rotation built in. For long-running production deployments, pair `logs/app.log` with a log-rotation tool such as `logrotate` (Linux) or route stdout to a log aggregator.
+
+## mDNS / Bonjour Discovery
+
+On every startup, Monitor API publishes a Bonjour (mDNS) service so that other devices on the local network can discover the server without a static IP:
+
+| Property | Value |
+|---|---|
+| Service name | `Monitor API` |
+| Service type | `_monitor._tcp` |
+| Port | `3000` |
+| TXT record — `ipv4` | Local IPv4 address of the server interface |
+
+The mDNS advertisement is handled by the `bonjour-service` package. Any Bonjour-compatible client (Safari, Finder, `dns-sd`, Avahi, etc.) will see `Monitor API._monitor._tcp.local` resolve to the server's IP on port 3000.
+
+An unauthenticated HTTP endpoint provides the same discovery information for non-mDNS clients:
+
+```bash
+GET /discovery
+```
+
+```json
+{
+  "nombre": "Monitor API",
+  "ips": ["192.168.1.42"]
+}
+```
+
+The `ips` array lists all non-loopback IPv4 addresses found on the server's network interfaces at the time of the request.

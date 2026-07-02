@@ -1,0 +1,157 @@
+---
+title: "POST /api/expedientes/:no_siniestro/evidencias — Upload an Evidence File"
+sidebarTitle: "POST /evidencias"
+description: "Upload a photo or document as evidence for an expediente. Accepts multipart form data up to 50 MB. Files are stored locally organized by siniestro number and type."
+---
+
+Upload a file as evidence for an insurance claim expediente. The file is stored on the server's local filesystem inside a folder named after the siniestro number. A new `evidencia` database record is created with the file's metadata and a reference to the stored path.
+
+## Endpoint
+
+```
+POST /api/expedientes/:no_siniestro/evidencias
+```
+
+**Authentication:** Bearer token required. Only `Administrador` and `Operador` roles may upload evidence.
+
+## Path Parameters
+
+<ParamField path="no_siniestro" type="string" required>
+  The siniestro number of the parent expediente (e.g. `SIN-2024-001`). The server verifies the expediente exists in the database before creating the record. Returns `404` if not found.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="tipo" type="string">
+  Controls which subfolder the file lands in. When set to `"documento"`, the file is saved under `DOCUMENTOS REPARACION/`. Omit this parameter (or use any other value) to store the file as a photo under the `evidencias/` subfolder.
+
+  | Value | Destination subfolder |
+  |-------|----------------------|
+  | `"documento"` | `DOCUMENTOS REPARACION/` |
+  | _(omitted)_ | `evidencias/` |
+</ParamField>
+
+## Request Body
+
+Content-Type: `multipart/form-data`
+
+<ParamField body="archivo" type="file" required>
+  The file to upload. Any MIME type is accepted. Maximum file size is **50 MB** — requests exceeding this limit are rejected with `413`.
+</ParamField>
+
+<Warning>
+  The `EVIDENCIAS_DIR` environment variable (resolved relative to the project root as `../../evidencias` from the routes file) controls the base directory where all evidence folders are created. Ensure this path exists and is writable by the Node.js process before uploading files.
+</Warning>
+
+## Example Requests
+
+```bash
+# Upload a damage photo (stored in evidencias/ subfolder)
+curl -X POST http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "archivo=@/path/to/damage-photo.jpg"
+```
+
+```bash
+# Upload a repair document (stored in DOCUMENTOS REPARACION/ subfolder)
+curl -X POST "http://localhost:3000/api/expedientes/SIN-2024-001/evidencias?tipo=documento" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "archivo=@/path/to/poliza.pdf"
+```
+
+## File Storage Layout
+
+Files are organized under the base `evidencias/` directory as follows:
+
+```
+evidencias/
+└── SIN-2024-001/
+    ├── evidencias/                ← photos (default, ?tipo omitted)
+    │   └── 1713900000000_damage-photo.jpg
+    └── DOCUMENTOS REPARACION/     ← repair documents (?tipo=documento)
+        └── 1713800000000_poliza.pdf
+```
+
+Filenames are saved as `<unix_timestamp_ms>_<sanitized_original_name>` — spaces in the original filename are replaced with underscores. This scheme prevents collisions when the same filename is uploaded multiple times.
+
+<Tip>
+  The destination subfolder is created automatically with `fs.mkdirSync({ recursive: true })` if it does not already exist, so no manual directory setup is needed beyond ensuring the base path is writable.
+</Tip>
+
+## Response
+
+### 201 — Created
+
+Returns the newly created `evidencia` database record.
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key of the new evidencia record.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="string">
+  Siniestro number of the parent expediente, echoed from the path parameter.
+</ResponseField>
+
+<ResponseField name="tipo" type="string | null">
+  MIME type of the uploaded file as detected by multer (e.g. `image/jpeg`, `application/pdf`).
+</ResponseField>
+
+<ResponseField name="nombre_archivo" type="string | null">
+  Original filename provided by the client before server-side renaming.
+</ResponseField>
+
+<ResponseField name="ruta" type="string | null">
+  Absolute filesystem path of the saved file, as returned by multer after writing to disk. Use this path to serve or reference the file later.
+</ResponseField>
+
+<ResponseField name="fecha_carga" type="string | null">
+  ISO 8601 timestamp set automatically by the database at insert time.
+</ResponseField>
+
+<ResponseField name="ubicacion_almacenamiento" type="string">
+  Always `"Local"` for files uploaded through this endpoint.
+</ResponseField>
+
+<ResponseField name="subido_por" type="integer | null">
+  ID of the authenticated `usuario` who performed the upload. Sourced from the JWT payload.
+</ResponseField>
+
+#### Example Response Body
+
+```json
+{
+  "id": 43,
+  "no_siniestro": "SIN-2024-001",
+  "tipo": "image/jpeg",
+  "nombre_archivo": "damage-photo.jpg",
+  "ruta": "/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
+  "fecha_carga": "2024-04-23T18:25:43.511Z",
+  "ubicacion_almacenamiento": "Local",
+  "subido_por": 7
+}
+```
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400`  | No file was included in the request body, or `no_siniestro` is not a valid string. |
+| `401`  | Missing or invalid Bearer token. |
+| `403`  | Authenticated user does not have the `Administrador` or `Operador` role. |
+| `404`  | No expediente with the given `no_siniestro` exists in the database. |
+| `413`  | Uploaded file exceeds the 50 MB size limit. |
+| `500`  | Internal server error while saving the record — check server logs. |
+
+```json
+// 400 — no file
+{ "error": "No se recibió ningún archivo" }
+
+// 400 — bad siniestro
+{ "error": "Número de siniestro inválido" }
+
+// 404 — expediente not found
+{ "error": "Expediente no encontrado" }
+
+// 500
+{ "error": "Error interno al registrar evidencia" }
+```

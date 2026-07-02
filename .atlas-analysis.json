@@ -1,0 +1,130 @@
+{
+  "projectType": "api-service",
+  "projectName": "Monitor API",
+  "projectDescription": "A REST API backend for managing auto-body shop insurance claim workflows, including expediente tracking, damage surveys, evidence uploads, and multi-role user management.",
+  "theme": "luma",
+  "primaryColor": "#2563EB",
+  "lightColor": "#DBEAFE",
+  "darkColor": "#1E3A5F",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/roles",
+              "concepts/data-model"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/managing-expedientes",
+              "guides/evidence-uploads",
+              "guides/levantamiento",
+              "guides/health-monitoring"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/login",
+              "api/auth/register"
+            ]
+          },
+          {
+            "group": "Expedientes",
+            "pages": [
+              "api/expedientes/list",
+              "api/expedientes/get",
+              "api/expedientes/create",
+              "api/expedientes/update",
+              "api/expedientes/delete"
+            ]
+          },
+          {
+            "group": "Evidencias",
+            "pages": [
+              "api/evidencias/list",
+              "api/evidencias/upload",
+              "api/evidencias/delete"
+            ]
+          },
+          {
+            "group": "Levantamiento de Daños",
+            "pages": [
+              "api/levantamiento/list",
+              "api/levantamiento/get",
+              "api/levantamiento/create",
+              "api/levantamiento/update",
+              "api/levantamiento/conceptos",
+              "api/levantamiento/costo-total"
+            ]
+          },
+          {
+            "group": "Users & Health",
+            "pages": [
+              "api/usuarios/overview",
+              "api/health"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT-based authentication with role-based access control (Administrador, Operador, Tecnico)",
+    "Full CRUD for insurance claim expedientes with status lifecycle tracking",
+    "File evidence uploads stored locally per expediente, organized by siniestro number",
+    "Damage survey (levantamiento de daños) with line-item cost concepts and total cost calculation",
+    "Aseguradora (insurer) management with seeded default data",
+    "mDNS/Bonjour service discovery for LAN deployments",
+    "Periodic system health checks for backend, database, disk, and evidence storage",
+    "Structured logging to console and rotating log file"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/register",
+    "GET /api/usuarios",
+    "GET /api/usuarios/:id",
+    "PUT /api/usuarios/:id",
+    "DELETE /api/usuarios/:id",
+    "GET /api/expedientes",
+    "GET /api/expedientes/:no_siniestro",
+    "POST /api/expedientes",
+    "PUT /api/expedientes/:no_siniestro",
+    "DELETE /api/expedientes/:no_siniestro",
+    "GET /api/expedientes/aseguradoras",
+    "GET /api/expedientes/:no_siniestro/evidencias",
+    "POST /api/expedientes/:no_siniestro/evidencias",
+    "DELETE /api/expedientes/:no_siniestro/evidencias/:id",
+    "DELETE /api/expedientes/:no_siniestro/evidencias",
+    "GET /api/levantamientos",
+    "POST /api/levantamientos",
+    "GET /api/levantamientos/:id",
+    "GET /api/levantamientos/siniestro/:no_siniestro",
+    "PUT /api/levantamientos/:id",
+    "POST /api/levantamientos/:id/conceptos",
+    "DELETE /api/levantamientos/conceptos/:id_concepto",
+    "DELETE /api/levantamientos/:id",
+    "GET /api/levantamientos/:id/costo-total",
+    "GET /api/health",
+    "GET /discovery"
+  ]
+}

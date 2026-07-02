@@ -1,0 +1,76 @@
+---
+title: "Role-Based Access Control in Monitor API"
+sidebarTitle: "Roles & Permissions"
+description: "Monitor API enforces three roles — Administrador, Operador, and Técnico — with different levels of access to expedientes, users, and sensitive operations."
+---
+
+Monitor API enforces role-based access control (RBAC) via the `rol` claim embedded in every JWT. The claim is set at login and cannot be altered by the client. Three roles exist: `Administrador`, `Operador`, and `Técnico`. Every protected route is guarded by at least one middleware function that compares the token's `rol` value against the required permission level.
+
+## Role Summary
+
+| Role | Create expediente | Read expediente | Update expediente | Delete expediente | Manage users | Upload evidence | Delete evidence / concepts |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Administrador | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Operador | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Técnico | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+## Role Descriptions
+
+### Administrador
+
+Full access to every endpoint in the API. Administrators are the only users who can:
+
+- Create new user accounts via `POST /api/auth/register`.
+- Delete expedientes (`DELETE /api/expedientes/:no_siniestro`).
+- Delete uploaded evidence files.
+- Delete levantamiento concepts and levantamiento records.
+
+<Note>
+  An administrator **cannot delete their own account**. This guard prevents accidentally locking the system out of all administrative access.
+</Note>
+
+### Operador
+
+Broad write access to claim data, but no destructive or user-management operations. Operadores can:
+
+- Create, read, and update expedientes.
+- Upload evidence files (`POST /api/evidencias`).
+
+Operadores **cannot** delete expedientes, delete evidence, delete levantamiento records, or create/manage other user accounts.
+
+### Técnico
+
+Read-only access. Técnicos can view expedientes and their associated levantamientos, but **cannot write, update, or delete anything** in the system.
+
+## Middleware Implementation
+
+Three middleware functions in `auth.middleware.ts` enforce authentication and authorization. They are designed to be composed as Express route middleware chains.
+
+<ResponseField name="verificarToken" type="middleware">
+  Reads the `Authorization: Bearer <token>` header, verifies the JWT signature and expiry using the server's `JWT_SECRET`, and attaches the decoded payload to `req.usuario`. Returns `401` if the header is absent or the token is invalid.
+</ResponseField>
+
+<ResponseField name="soloAdmin" type="middleware">
+  Checks that `req.usuario.rol === "Administrador"`. Returns `403` with `{ "error": "Acceso restringido a administradores" }` for any other role. Must be placed **after** `verificarToken` in the chain.
+</ResponseField>
+
+<ResponseField name="soloAdminOOperador" type="middleware">
+  Checks that `req.usuario.rol` is either `"Administrador"` or `"Operador"`. Returns `403` with `{ "error": "Acceso restringido a administradores y operadores" }` for `Tecnico` tokens. Must be placed **after** `verificarToken` in the chain.
+</ResponseField>
+
+Middleware functions are chained directly in the route definition. The request only reaches the controller if every middleware in the chain calls `next()`:
+
+```typescript
+// Only Administradores can delete an expediente
+router.delete('/:no_siniestro', verificarToken, soloAdmin, eliminarExpediente);
+
+// Administradores and Operadores can create an expediente
+router.post('/', verificarToken, soloAdminOOperador, crearExpediente);
+
+// All authenticated users (including Técnico) can read expedientes
+router.get('/:no_siniestro', verificarToken, obtenerExpediente);
+```
+
+<Note>
+  Usernames cannot contain whitespace. This constraint is validated at both `POST /api/auth/login` and `POST /api/auth/register` — requests where `username` matches `/\s/` are rejected with `400` before any database lookup is performed.
+</Note>

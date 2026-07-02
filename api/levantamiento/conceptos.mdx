@@ -1,0 +1,147 @@
+---
+title: "Manage Cost Concepts on a Levantamiento de Daños"
+sidebarTitle: "Conceptos"
+description: "Add or remove itemized repair cost concepts on a levantamiento. Each concept has a code, description, and unit cost used to calculate the total repair estimate."
+---
+
+Cost concepts are the line items of a damage survey — each one represents a specific repair task (e.g. replacing a windshield, repainting a panel) with a description, an optional item code, and a unit cost. Concepts are attached to a levantamiento and their costs are summed to produce the total repair estimate via [GET /api/levantamientos/:id/costo-total](/api/levantamiento/costo-total).
+
+---
+
+## Add a Cost Concept
+
+```
+POST /api/levantamientos/:id/conceptos
+```
+
+Attach a new cost concept to an existing levantamiento. Requires a valid Bearer token — all authenticated roles may add concepts.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric ID of the levantamiento to attach the concept to. Must parse as a valid integer.
+</ParamField>
+
+### Request Body
+
+<ParamField body="concepto" type="string" required>
+  A human-readable description of the repair item, e.g. `"Cambio de parabrisas"` or `"Reparación de panel trasero"`.
+</ParamField>
+
+<ParamField body="claves" type="string">
+  An item code or SKU used to identify this repair task in internal catalogues, e.g. `"CR-001"`.
+</ParamField>
+
+<ParamField body="costo" type="number">
+  Unit cost of the repair item as a decimal number, e.g. `3500.00`. Stored as a PostgreSQL `Decimal`. Defaults to `null` if not provided.
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X POST http://localhost:3000/api/levantamientos/42/conceptos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "concepto": "Cambio de parabrisas",
+    "claves": "CR-001",
+    "costo": 3500.00
+  }'
+```
+
+### Response
+
+#### 201 — Created
+
+Returns the newly created `levantamiento_concepto` record.
+
+```json
+{
+  "id": 7,
+  "id_levantamiento": 42,
+  "claves": "CR-001",
+  "concepto": "Cambio de parabrisas",
+  "costo": "3500.00"
+}
+```
+
+<Expandable title="Response fields">
+
+  <ResponseField name="id" type="integer">
+    Auto-incremented primary key of the concept record.
+  </ResponseField>
+
+  <ResponseField name="id_levantamiento" type="integer">
+    Foreign key referencing the parent `levantamiento_danios.id`.
+  </ResponseField>
+
+  <ResponseField name="claves" type="string | null">
+    Item code or SKU, if provided.
+  </ResponseField>
+
+  <ResponseField name="concepto" type="string | null">
+    Description of the repair task.
+  </ResponseField>
+
+  <ResponseField name="costo" type="string | null">
+    Unit cost serialized as a decimal string by Prisma, e.g. `"3500.00"`.
+  </ResponseField>
+
+</Expandable>
+
+### Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "id inválido" }` | The `:id` path segment is not a valid integer. |
+| `400`  | `{ "error": "concepto es requerido" }` | The `concepto` field was missing from the request body. |
+| `401`  | — | Missing or invalid `Authorization` header. |
+| `404`  | `{ "error": "Levantamiento no encontrado" }` | No levantamiento exists with the given ID. |
+
+---
+
+## Delete a Cost Concept
+
+```
+DELETE /api/levantamientos/conceptos/:id_concepto
+```
+
+Permanently remove a cost concept from its levantamiento. Requires the **Administrador** role.
+
+<Warning>
+  This action is permanent. The concept record is deleted from the database and cannot be recovered. The total repair cost for the parent levantamiento will be recalculated on the next call to [GET /costo-total](/api/levantamiento/costo-total).
+</Warning>
+
+### Path Parameters
+
+<ParamField path="id_concepto" type="integer" required>
+  The numeric primary key of the `levantamiento_concepto` record to delete. Must parse as a valid integer.
+</ParamField>
+
+### Request Example
+
+```bash
+curl -X DELETE http://localhost:3000/api/levantamientos/conceptos/15 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### Response
+
+#### 200 — Success
+
+Returns a confirmation message upon successful deletion.
+
+```json
+{
+  "mensaje": "Concepto eliminado correctamente"
+}
+```
+
+### Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "id_concepto inválido" }` | The `:id_concepto` path segment is not a valid integer. |
+| `401`  | — | Missing or invalid `Authorization` header. |
+| `403`  | — | Authenticated user does not have the `Administrador` role. |
+| `404`  | `{ "error": "Concepto no encontrado" }` | No concept exists with the given ID. |

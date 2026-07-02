@@ -1,0 +1,142 @@
+---
+title: "GET /api/health — System Health and Status Endpoint"
+sidebarTitle: "GET /health"
+description: "Check backend availability, database connectivity, disk space, evidence file storage, RAM usage, and total expediente count from a single unauthenticated endpoint."
+---
+
+The health endpoint provides a real-time snapshot of Monitor API's operational status. It requires no authentication and is suitable for polling from external monitoring tools, load balancers, or dashboard widgets. A single request triggers live checks against PostgreSQL, the local filesystem, the evidence storage directory, and Node.js process memory — all results are returned in one JSON object.
+
+---
+
+## GET /api/health
+
+**No authentication required.**
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+### Response — 200 OK
+
+This endpoint always returns HTTP `200`. Inspect the individual boolean fields (`backend`, `database`) to determine actual service health — a `200` status code alone does not guarantee the database is reachable.
+
+```json
+{
+  "ip": "192.168.1.50",
+  "backend": true,
+  "database": true,
+  "disco": {
+    "libre_GB": "45.2",
+    "usado_GB": "14.8",
+    "total_GB": "60.0"
+  },
+  "evidencias": {
+    "archivos": 312,
+    "tamaño_MB": "1240.5"
+  },
+  "expedientes": 87,
+  "ram": {
+    "usada_MB": 128,
+    "total_MB": 8192
+  }
+}
+```
+
+<ResponseField name="ip" type="string">
+  Client IP address as seen by the server, derived from `req.ip` or `req.socket.remoteAddress`. Useful for verifying network routing behind a proxy or reverse proxy.
+</ResponseField>
+
+<ResponseField name="backend" type="boolean">
+  Always `true` when this endpoint returns a response. Its presence in the payload confirms the Express process is alive and handling requests.
+</ResponseField>
+
+<ResponseField name="database" type="boolean">
+  `true` if a `SELECT 1` query against PostgreSQL succeeded; `false` if the query threw an error. A `false` value means the API cannot read or write claim data.
+</ResponseField>
+
+<ResponseField name="disco" type="object">
+  Disk usage statistics for the volume where the API process is running. On Linux, sourced from `df -BGB`. On Windows, sourced from `wmic logicaldisk`.
+
+  <Expandable title="disco fields">
+    <ResponseField name="disco.libre_GB" type="string">
+      Free disk space available, in gigabytes, formatted to one decimal place (e.g. `"45.2"`).
+    </ResponseField>
+
+    <ResponseField name="disco.usado_GB" type="string">
+      Used disk space on the current volume, in gigabytes, formatted to one decimal place.
+    </ResponseField>
+
+    <ResponseField name="disco.total_GB" type="string">
+      Total disk capacity of the current volume, in gigabytes, formatted to one decimal place.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="evidencias" type="object">
+  Statistics about the evidence file directory (`EVIDENCIAS_DIR`). This directory stores uploaded insurance claim files. Falls back to `{ archivos: 0, tamaño_MB: "0" }` if the directory does not exist or cannot be read.
+
+  <Expandable title="evidencias fields">
+    <ResponseField name="evidencias.archivos" type="integer">
+      Number of files currently present in `EVIDENCIAS_DIR`. Counted with a synchronous `readdirSync`.
+    </ResponseField>
+
+    <ResponseField name="evidencias.tamaño_MB" type="string">
+      Combined size of all files in `EVIDENCIAS_DIR`, in megabytes, formatted to one decimal place (e.g. `"1240.5"`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="expedientes" type="integer">
+  Total number of `expediente` (claim) records in the PostgreSQL database, obtained via `prisma.expediente.count()`. Returns `0` if the query fails.
+</ResponseField>
+
+<ResponseField name="ram" type="object">
+  Memory usage for the Node.js process and the host machine.
+
+  <Expandable title="ram fields">
+    <ResponseField name="ram.usada_MB" type="integer">
+      Resident Set Size (RSS) of the Node.js process in megabytes, rounded to the nearest integer. RSS reflects all physical memory currently held by the process.
+    </ResponseField>
+
+    <ResponseField name="ram.total_MB" type="integer">
+      Total physical RAM available on the host system in megabytes, reported by `os.totalmem()`, rounded to the nearest integer.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Tip>
+  Configure an uptime monitor such as [UptimeRobot](https://uptimerobot.com) to poll `GET /api/health` every minute. Set up a keyword alert that fires when the response body contains `"database":false` — this catches PostgreSQL outages immediately, even when the backend process itself stays up and returns `200`.
+</Tip>
+
+---
+
+## GET /discovery
+
+**No authentication required.**
+
+Returns all non-loopback IPv4 addresses bound to the server's network interfaces. Clients on the same LAN can call this endpoint to locate the Monitor API server without manual IP configuration.
+
+```bash
+curl http://localhost:3000/discovery
+```
+
+### Response — 200 OK
+
+```json
+{
+  "nombre": "Monitor API",
+  "ips": ["192.168.1.10", "10.0.0.5"]
+}
+```
+
+<ResponseField name="nombre" type="string">
+  Always `"Monitor API"`. Acts as a service identifier so clients can confirm they have reached the correct host.
+</ResponseField>
+
+<ResponseField name="ips" type="string[]">
+  Array of IPv4 address strings. Loopback addresses (`127.x.x.x`) are excluded. A machine with both a wired and a wireless adapter will surface both addresses here.
+</ResponseField>
+
+<Note>
+  Monitor API also runs automatic health checks on startup and then on a repeating `setInterval` every **5 minutes**. These checks (backend port probe, PostgreSQL `SELECT 1`, disk stats, evidencias directory scan, and a frontend availability probe on port `8081`) are logged to both stdout and `logs/app.log` in the project root. Check that log file for historical status data or to diagnose intermittent failures outside of a polling window.
+</Note>

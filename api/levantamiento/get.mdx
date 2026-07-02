@@ -1,0 +1,262 @@
+---
+title: "GET /api/levantamientos/:id — Retrieve a Damage Survey by ID or Siniestro"
+sidebarTitle: "GET /levantamientos/:id"
+description: "Retrieve a single levantamiento de daños by its numeric ID, or fetch by siniestro number using the dedicated siniestro lookup endpoint. Requires authentication."
+---
+
+Monitor API provides two ways to look up a single damage survey — by its auto-incremented integer ID, or by the related siniestro number. Both routes are protected by Bearer token authentication and available to all authenticated roles.
+
+<Note>
+  The `/siniestro/:no_siniestro` route is registered in Express **before** `/:id` in the route file, so it is matched first and the two routes never conflict. Always use the explicit `/siniestro/` prefix when looking up by claim number.
+</Note>
+
+---
+
+## Get by ID
+
+```
+GET /api/levantamientos/:id
+```
+
+Returns the full levantamiento record including its nested `levantamiento_concepto` array and the related `expediente`.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  The numeric primary key of the levantamiento. Must parse as a valid integer.
+</ParamField>
+
+### Request Example
+
+```bash
+curl http://localhost:3000/api/levantamientos/42 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Response
+
+#### 200 — Success
+
+Returns the matching levantamiento object with nested concepts and expediente.
+
+```json
+{
+  "id": 42,
+  "no_siniestro": "SIN-2024-001",
+  "fecha": "2024-01-15T12:00:00.000Z",
+  "orden": "ORD-0042",
+  "marca": "Toyota",
+  "tipo": "Sedán",
+  "modelo": "Corolla",
+  "placas": "ABC-1234",
+  "kilometraje": "84500",
+  "no_puertas": "4",
+  "color": "Blanco",
+  "serie": "1HGBH41JXMN109186",
+  "eco": "ECO-042",
+  "asegurado_tercero": "Asegurado",
+  "nombre_propietario": "Juan Pérez",
+  "telefono": "5551234567",
+  "direccion": "Calle Reforma 123, CDMX",
+  "pega": null,
+  "cristales": true,
+  "aire": false,
+  "vestiduras": false,
+  "rin": false,
+  "direccion_veh": false,
+  "tipo_pintura": true,
+  "trasmision": false,
+  "levantamiento_concepto": [
+    {
+      "id": 7,
+      "id_levantamiento": 42,
+      "claves": "CR-001",
+      "concepto": "Cambio de parabrisas",
+      "costo": "3500.00"
+    }
+  ],
+  "expediente": {
+    "no_siniestro": "SIN-2024-001",
+    "marca": "Toyota",
+    "modelo": "Corolla",
+    "estado": "Restauracion"
+  }
+}
+```
+
+<Expandable title="Response fields">
+
+  <ResponseField name="id" type="integer">
+    Primary key of the levantamiento.
+  </ResponseField>
+
+  <ResponseField name="no_siniestro" type="string | null">
+    Claim number, references `expediente.no_siniestro`.
+  </ResponseField>
+
+  <ResponseField name="fecha" type="string | null">
+    ISO 8601 date of the survey.
+  </ResponseField>
+
+  <ResponseField name="orden" type="string | null">
+    Work order reference.
+  </ResponseField>
+
+  <ResponseField name="marca" type="string | null">
+    Vehicle make.
+  </ResponseField>
+
+  <ResponseField name="tipo" type="string | null">
+    Vehicle body type.
+  </ResponseField>
+
+  <ResponseField name="modelo" type="string | null">
+    Vehicle model name.
+  </ResponseField>
+
+  <ResponseField name="placas" type="string | null">
+    License plate number.
+  </ResponseField>
+
+  <ResponseField name="kilometraje" type="string | null">
+    Odometer reading.
+  </ResponseField>
+
+  <ResponseField name="no_puertas" type="string | null">
+    Number of doors.
+  </ResponseField>
+
+  <ResponseField name="color" type="string | null">
+    Vehicle color.
+  </ResponseField>
+
+  <ResponseField name="serie" type="string | null">
+    VIN / number of series.
+  </ResponseField>
+
+  <ResponseField name="eco" type="string | null">
+    Internal economic number.
+  </ResponseField>
+
+  <ResponseField name="asegurado_tercero" type="string | null">
+    Policy holder or third party indicator.
+  </ResponseField>
+
+  <ResponseField name="nombre_propietario" type="string | null">
+    Vehicle owner's full name.
+  </ResponseField>
+
+  <ResponseField name="telefono" type="string | null">
+    Owner's contact phone.
+  </ResponseField>
+
+  <ResponseField name="direccion" type="string | null">
+    Owner's address.
+  </ResponseField>
+
+  <ResponseField name="pega" type="string | null">
+    Sticker or label reference.
+  </ResponseField>
+
+  <ResponseField name="cristales" type="boolean | null">
+    Glass damage flag.
+  </ResponseField>
+
+  <ResponseField name="aire" type="boolean | null">
+    A/C damage flag.
+  </ResponseField>
+
+  <ResponseField name="vestiduras" type="boolean | null">
+    Upholstery damage flag.
+  </ResponseField>
+
+  <ResponseField name="rin" type="boolean | null">
+    Rim damage flag.
+  </ResponseField>
+
+  <ResponseField name="direccion_veh" type="boolean | null">
+    Steering damage flag.
+  </ResponseField>
+
+  <ResponseField name="tipo_pintura" type="boolean | null">
+    Paint type / paint damage flag.
+  </ResponseField>
+
+  <ResponseField name="trasmision" type="boolean | null">
+    Transmission damage flag.
+  </ResponseField>
+
+  <ResponseField name="levantamiento_concepto" type="array">
+    Nested array of cost concepts. See [Conceptos](/api/levantamiento/conceptos).
+  </ResponseField>
+
+  <ResponseField name="expediente" type="object">
+    The related expediente record for the claim.
+  </ResponseField>
+
+</Expandable>
+
+### Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "id inválido" }` | The `:id` path segment is not a valid integer. |
+| `401`  | — | Missing or invalid Bearer token. |
+| `404`  | `{ "error": "Levantamiento no encontrado" }` | No levantamiento exists with that ID. |
+
+---
+
+## Get by Siniestro Number
+
+```
+GET /api/levantamientos/siniestro/:no_siniestro
+```
+
+Returns the most recent levantamiento associated with the given siniestro number. When multiple surveys exist for the same claim, only the one with the highest `id` is returned.
+
+### Path Parameters
+
+<ParamField path="no_siniestro" type="string" required>
+  The siniestro (claim) number to look up. Must match the `no_siniestro` field on a levantamiento record.
+
+  **Example:** `SIN-2024-001`
+</ParamField>
+
+### Request Example
+
+```bash
+curl http://localhost:3000/api/levantamientos/siniestro/SIN-2024-001 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Response
+
+#### 200 — Success
+
+Returns the most recent levantamiento for the given siniestro number, with nested `levantamiento_concepto`.
+
+```json
+{
+  "id": 42,
+  "no_siniestro": "SIN-2024-001",
+  "fecha": "2024-01-15T12:00:00.000Z",
+  "marca": "Toyota",
+  "modelo": "Corolla",
+  "levantamiento_concepto": [
+    {
+      "id": 7,
+      "id_levantamiento": 42,
+      "claves": "CR-001",
+      "concepto": "Cambio de parabrisas",
+      "costo": "3500.00"
+    }
+  ]
+}
+```
+
+### Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `401`  | — | Missing or invalid Bearer token. |
+| `404`  | `{ "error": "No existe levantamiento para este siniestro" }` | No levantamiento is linked to the provided siniestro number. |

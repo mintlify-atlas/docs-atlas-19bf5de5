@@ -1,0 +1,115 @@
+---
+title: "GET /api/expedientes/:no_siniestro/evidencias — List Evidence Files"
+sidebarTitle: "GET /evidencias"
+description: "Retrieve all evidence records attached to an expediente. Returns file metadata including filename, MIME type, upload date, and storage path. Requires authentication."
+---
+
+Retrieve the list of all evidence files (photos and documents) attached to a specific expediente. Records are returned in descending order by upload date, newest first.
+
+## Endpoint
+
+```
+GET /api/expedientes/:no_siniestro/evidencias
+```
+
+**Authentication:** Bearer token required. All authenticated roles (`Administrador`, `Operador`, `Tecnico`) may call this endpoint.
+
+## Path Parameters
+
+<ParamField path="no_siniestro" type="string" required>
+  The siniestro number of the parent expediente (e.g. `SIN-2024-001`). Must match the `no_siniestro` primary key on the `expediente` table.
+</ParamField>
+
+## Example Request
+
+```bash
+curl http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Response
+
+### 200 — Success
+
+Returns a JSON array of evidencia objects. An empty array (`[]`) is returned when no evidence has been uploaded yet.
+
+<ResponseField name="id" type="integer">
+  Auto-incremented primary key of the evidencia record.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="string">
+  Siniestro number of the parent expediente this file belongs to.
+</ResponseField>
+
+<ResponseField name="tipo" type="string | null">
+  MIME type of the uploaded file as reported by the client, e.g. `image/jpeg`, `application/pdf`.
+</ResponseField>
+
+<ResponseField name="nombre_archivo" type="string | null">
+  Original filename as provided by the uploader before any server-side renaming.
+</ResponseField>
+
+<ResponseField name="ruta" type="string | null">
+  Absolute filesystem path where the file is stored on the server, e.g. `/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg`.
+</ResponseField>
+
+<ResponseField name="fecha_carga" type="string | null">
+  ISO 8601 timestamp of when the record was created. Defaults to the database server's current time at insert. Example: `"2024-04-23T18:25:43.511Z"`.
+</ResponseField>
+
+<ResponseField name="ubicacion_almacenamiento" type="string">
+  Storage location enum. Always `"Local"` for files uploaded through this API — cloud storage is reserved for future use.
+
+  Possible values: `Local` | `Nube`
+</ResponseField>
+
+<ResponseField name="subido_por" type="integer | null">
+  ID of the `usuario` who uploaded the file. `null` if the uploader could not be determined.
+</ResponseField>
+
+<Note>
+  Results are ordered by `fecha_carga DESC` — the most recently uploaded file appears first in the array.
+</Note>
+
+#### Example Response Body
+
+```json
+[
+  {
+    "id": 42,
+    "no_siniestro": "SIN-2024-001",
+    "tipo": "image/jpeg",
+    "nombre_archivo": "damage-photo.jpg",
+    "ruta": "/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
+    "fecha_carga": "2024-04-23T18:25:43.511Z",
+    "ubicacion_almacenamiento": "Local",
+    "subido_por": 7
+  },
+  {
+    "id": 39,
+    "no_siniestro": "SIN-2024-001",
+    "tipo": "application/pdf",
+    "nombre_archivo": "poliza.pdf",
+    "ruta": "/app/evidencias/SIN-2024-001/DOCUMENTOS REPARACION/1713800000000_poliza.pdf",
+    "fecha_carga": "2024-04-22T10:00:00.000Z",
+    "ubicacion_almacenamiento": "Local",
+    "subido_por": 3
+  }
+]
+```
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400`  | `no_siniestro` path parameter is missing or not a valid string. |
+| `401`  | Missing or invalid Bearer token. |
+| `500`  | Internal server error — check server logs for details. |
+
+```json
+// 400
+{ "error": "Número de siniestro inválido" }
+
+// 500
+{ "error": "Error al obtener evidencias" }
+```

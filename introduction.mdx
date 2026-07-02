@@ -1,0 +1,70 @@
+---
+title: "Monitor API: REST Backend for Insurance Claim Workflows"
+sidebarTitle: "Introduction"
+description: "Monitor API manages auto-body shop insurance claims end-to-end — expediente tracking, evidence uploads, damage surveys, and role-based user access over a single REST API."
+---
+
+Monitor API is a Node.js/TypeScript REST backend built for Mexican auto-body shops that handle insurance repair claims. Shop administrators, service advisors, and technicians use it to track every claim — called an **expediente** — from the moment a vehicle arrives through final delivery, while adjusters can retrieve damage surveys, photos, and checklist data at any stage of the workflow. By centralizing claim state, evidence storage, and user roles in a single API, Monitor eliminates the spreadsheets and paper forms that traditionally slow repair-to-payment cycles.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Authentication & Roles"
+    icon="shield-halved"
+    href="/concepts/authentication"
+  >
+    JWT-based auth with three roles — **Administrador**, **Operador**, and **Técnico** — so each user sees and modifies only what they're permitted to.
+  </Card>
+  <Card
+    title="Data Model"
+    icon="database"
+    href="/concepts/data-model"
+  >
+    A PostgreSQL schema managed by Prisma ORM covers expedientes, aseguradoras, evidencias, checklists, levantamiento de daños, and full estado change history.
+  </Card>
+  <Card
+    title="Managing Expedientes"
+    icon="folder-open"
+    href="/guides/managing-expedientes"
+  >
+    Create, update, and advance claims through four workflow states — Ingreso → Restauración → Pendiente de salida → Salida — with every transition logged in an immutable audit trail.
+  </Card>
+  <Card
+    title="Evidence Uploads"
+    icon="camera"
+    href="/guides/evidence-uploads"
+  >
+    Attach photos and documents to any expediente via multipart upload. Files are stored locally (or flagged for cloud), referenced by claim number, and attributed to the uploading user.
+  </Card>
+  <Card
+    title="Levantamiento de Daños"
+    icon="clipboard-list"
+    href="/guides/levantamiento"
+  >
+    Record a structured damage survey per expediente, including vehicle details, affected systems, and line-item repair concepts with costs.
+  </Card>
+  <Card
+    title="Health Monitoring"
+    icon="heart-pulse"
+    href="/guides/health-monitoring"
+  >
+    Built-in status checks run at startup and every five minutes, verifying the backend, database connection, disk space, evidence directory, and optional frontend service.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+Monitor API is built on a small, production-tested stack:
+
+- **Express 5** — HTTP routing and middleware. CORS is open to all origins by default; tighten this in production via the `cors` configuration.
+- **Prisma ORM** — Type-safe database access against a PostgreSQL 15+ instance. The schema is version-controlled in `prisma/schema.prisma` and applied via Prisma Migrate.
+- **PostgreSQL** — The single source of truth for all claim, user, and evidence metadata.
+- **JWT authentication** — Tokens are issued at `/api/auth/login`, signed with `JWT_SECRET`, and expire after 8 hours. Every protected route validates the `Authorization: Bearer <token>` header.
+- **mDNS / Bonjour discovery** — On startup the server publishes a `_monitor._tcp` service named `Monitor API` on port 3000, so shop computers can locate the API without configuring static IPs. The `GET /discovery` endpoint exposes the same information over HTTP.
+- **Structured logging** — All server events are written to `logs/app.log` and to stdout with a color-coded format (see [Configuration](/configuration) for details).
+- **TypeScript (ES2022, NodeNext modules)** — The entire codebase is strictly typed. The production build compiles to `dist/` via `tsc`; development runs via `tsx watch` for instant reloads.
+
+<Note>
+  Many field and endpoint names in Monitor API are in **Spanish**. This is intentional — terms like `expediente`, `no_siniestro`, `aseguradora`, and `levantamiento_danios` directly mirror the vocabulary used in Mexican auto-body shop workflows and insurance paperwork. The domain language is preserved in the API to reduce translation friction for the teams who use it every day.
+</Note>

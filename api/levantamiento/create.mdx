@@ -1,0 +1,191 @@
+---
+title: "POST /api/levantamientos — Create a New Damage Survey"
+sidebarTitle: "POST /levantamientos"
+description: "Create a levantamiento de daños linked to an expediente. Supply vehicle details, damage flags, and an optional first cost concept. Requires authentication."
+---
+
+Create a new damage survey for a vehicle claim. The survey records the vehicle's condition at intake — its make, model, identification details, which systems are damaged, and any additional notes. Once created, itemized repair cost concepts can be attached via the [Conceptos](/api/levantamiento/conceptos) endpoints.
+
+## Endpoint
+
+```
+POST /api/levantamientos
+```
+
+Requires a valid Bearer token. All authenticated roles (`Administrador`, `Operador`, `Tecnico`) may create levantamientos.
+
+## Request Body
+
+<ParamField body="no_siniestro" type="string" required>
+  The claim number this survey belongs to. Must match the `no_siniestro` of an existing `expediente`. If no matching expediente is found, the request returns a `400` error.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Date the survey was conducted. Accepts two formats:
+  - ISO format: `"2024-01-15"` or `"2024-01-15T12:00:00Z"`
+  - Mexican locale format: `"15/01/2024"`
+
+  Stored as a PostgreSQL `Date`. If omitted, the field is left `null`.
+</ParamField>
+
+<ParamField body="orden" type="string">
+  Internal work order number associated with this survey.
+</ParamField>
+
+<ParamField body="marca" type="string">
+  Vehicle make, e.g. `"Toyota"`, `"Nissan"`.
+</ParamField>
+
+<ParamField body="tipo" type="string">
+  Vehicle body type, e.g. `"Sedán"`, `"SUV"`, `"Pick-up"`.
+</ParamField>
+
+<ParamField body="modelo" type="string">
+  Vehicle model name, e.g. `"Corolla"`, `"Sentra"`.
+</ParamField>
+
+<ParamField body="placas" type="string">
+  License plate number.
+</ParamField>
+
+<ParamField body="kilometraje" type="string">
+  Odometer reading at the time of the survey, e.g. `"84500"`.
+</ParamField>
+
+<ParamField body="no_puertas" type="string">
+  Number of doors, e.g. `"4"` or `"2"`.
+</ParamField>
+
+<ParamField body="color" type="string">
+  Vehicle color.
+</ParamField>
+
+<ParamField body="serie" type="string">
+  Vehicle identification number (VIN / número de serie).
+</ParamField>
+
+<ParamField body="eco" type="string">
+  Internal economic number assigned to the vehicle in the shop.
+</ParamField>
+
+<ParamField body="asegurado_tercero" type="string">
+  Whether the claim covers the policy holder or a third party. Common values: `"Asegurado"`, `"Tercero"`.
+</ParamField>
+
+<ParamField body="nombre_propietario" type="string">
+  Full name of the vehicle owner.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Contact phone number of the vehicle owner.
+</ParamField>
+
+<ParamField body="direccion" type="string">
+  Address of the vehicle owner.
+</ParamField>
+
+<ParamField body="pega" type="string">
+  Auxiliary sticker or label reference field.
+</ParamField>
+
+<ParamField body="cristales" type="boolean">
+  Set to `true` if the glass or windshield is damaged.
+</ParamField>
+
+<ParamField body="aire" type="boolean">
+  Set to `true` if the air conditioning system is damaged.
+</ParamField>
+
+<ParamField body="vestiduras" type="boolean">
+  Set to `true` if the upholstery is damaged.
+</ParamField>
+
+<ParamField body="rin" type="boolean">
+  Set to `true` if one or more wheel rims are damaged.
+</ParamField>
+
+<ParamField body="direccion_veh" type="boolean">
+  Set to `true` if the steering system is damaged.
+</ParamField>
+
+<ParamField body="tipo_pintura" type="boolean">
+  Paint type or paint damage flag.
+</ParamField>
+
+<ParamField body="trasmision" type="boolean">
+  Set to `true` if the transmission is damaged.
+</ParamField>
+
+## Request Example
+
+```bash
+curl -X POST http://localhost:3000/api/levantamientos \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "no_siniestro": "SIN-2024-001",
+    "marca": "Toyota",
+    "tipo": "Sedán",
+    "modelo": "Corolla",
+    "placas": "ABC-1234",
+    "kilometraje": "84500",
+    "no_puertas": "4",
+    "color": "Blanco",
+    "serie": "1HGBH41JXMN109186",
+    "fecha": "2024-01-15",
+    "nombre_propietario": "Juan Pérez",
+    "telefono": "5551234567",
+    "cristales": true,
+    "vestiduras": false,
+    "trasmision": true
+  }'
+```
+
+## Response
+
+### 201 — Created
+
+Returns the newly created levantamiento object, including the (initially empty) `levantamiento_concepto` array.
+
+```json
+{
+  "id": 43,
+  "no_siniestro": "SIN-2024-001",
+  "fecha": "2024-01-15T12:00:00.000Z",
+  "orden": null,
+  "marca": "Toyota",
+  "tipo": "Sedán",
+  "modelo": "Corolla",
+  "placas": "ABC-1234",
+  "kilometraje": "84500",
+  "no_puertas": "4",
+  "color": "Blanco",
+  "serie": "1HGBH41JXMN109186",
+  "eco": null,
+  "asegurado_tercero": null,
+  "nombre_propietario": "Juan Pérez",
+  "telefono": "5551234567",
+  "direccion": null,
+  "pega": null,
+  "cristales": true,
+  "aire": null,
+  "vestiduras": false,
+  "rin": null,
+  "direccion_veh": null,
+  "tipo_pintura": null,
+  "trasmision": true,
+  "levantamiento_concepto": []
+}
+```
+
+## Error Responses
+
+| Status | Body | Description |
+|--------|------|-------------|
+| `400`  | `{ "error": "no_siniestro es requerido" }` | The `no_siniestro` field was missing from the request body. |
+| `400`  | `{ "error": "No existe un expediente con ese no_siniestro" }` | The provided `no_siniestro` does not match any existing expediente. |
+| `401`  | — | Missing or invalid `Authorization` header. |
+
+<Tip>
+  After creating a levantamiento, use [POST /api/levantamientos/:id/conceptos](/api/levantamiento/conceptos) to add itemized repair cost line items, then call [GET /api/levantamientos/:id/costo-total](/api/levantamiento/costo-total) to compute the total estimate.
+</Tip>
