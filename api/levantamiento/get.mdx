@@ -1,7 +1,7 @@
 ---
-title: "GET /api/levantamientos/:id — Retrieve a Damage Survey by ID or Siniestro"
-sidebarTitle: "GET /levantamientos/:id"
-description: "Retrieve a single levantamiento de daños by its numeric ID, or fetch by siniestro number using the dedicated siniestro lookup endpoint. Requires authentication."
+title: "GET /api/levantamientos/:id — Retrieve a Damage Survey"
+sidebarTitle: "Get Survey"
+description: "Retrieve a single levantamiento de daños by its numeric ID or by siniestro number. Both routes require a valid Bearer token authentication."
 ---
 
 Monitor API provides two ways to look up a single damage survey — by its auto-incremented integer ID, or by the related siniestro number. Both routes are protected by Bearer token authentication and available to all authenticated roles.
@@ -77,9 +77,48 @@ Returns the matching levantamiento object with nested concepts and expediente.
   ],
   "expediente": {
     "no_siniestro": "SIN-2024-001",
+    "factura": null,
+    "orden": "ORD-0042",
+    "asesor": "Carlos López",
+    "fecha_ingreso": "2024-01-10T12:00:00.000Z",
+    "fecha_valuacion": null,
+    "fecha_autorizacion": null,
+    "fecha_pzas_completas": null,
+    "unidad_terminada": null,
+    "tecnico": null,
+    "mecanico": null,
+    "vehiculo": null,
+    "observaciones": null,
     "marca": "Toyota",
+    "placas": "ABC-1234",
+    "tipo": "Sedán",
+    "color": "Blanco",
     "modelo": "Corolla",
-    "estado": "Restauracion"
+    "nombre_cliente": "Juan Pérez",
+    "telefono_cliente": "5551234567",
+    "correo_cliente": null,
+    "dato1": null,
+    "dato1_fecha_hora": null,
+    "dato2": null,
+    "dato2_fecha_hora": null,
+    "dato3": null,
+    "dato3_fecha_hora": null,
+    "dato4": null,
+    "dato4_fecha_hora": null,
+    "comentarios_aseguradora": null,
+    "comentarios_aseguradora_fh": null,
+    "doc_orden_admision": null,
+    "doc_identificacion": null,
+    "doc_tarjeta_circulacion": null,
+    "doc_caratula_poliza": null,
+    "doc_carta_reparacion": null,
+    "doc_comprobante_deducible": null,
+    "doc_finiquito": null,
+    "doc_encuesta_servicio": null,
+    "estado": "Restauracion",
+    "ubicacion_almacenamiento": "Local",
+    "id_aseguradora": null,
+    "creado_por": 1
   }
 }
 ```
@@ -191,7 +230,7 @@ Returns the matching levantamiento object with nested concepts and expediente.
   </ResponseField>
 
   <ResponseField name="expediente" type="object">
-    The related expediente record for the claim.
+    The full related `expediente` record for the claim, including all scalar fields (dates, document flags, state, etc.). Relation fields (`checklist`, `evidencia`, `historial_estado`, `levantamiento_danios`) are not included.
   </ResponseField>
 
 </Expandable>

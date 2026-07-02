@@ -1,18 +1,18 @@
 ---
-title: "Role-Based Access Control in Monitor API"
+title: "Role-Based Access Control for Monitor API Endpoints"
 sidebarTitle: "Roles & Permissions"
-description: "Monitor API enforces three roles — Administrador, Operador, and Técnico — with different levels of access to expedientes, users, and sensitive operations."
+description: "Monitor API enforces Administrador, Operador, and Tecnico roles using route-level middleware that guards every protected endpoint in the system."
 ---
 
-Monitor API enforces role-based access control (RBAC) via the `rol` claim embedded in every JWT. The claim is set at login and cannot be altered by the client. Three roles exist: `Administrador`, `Operador`, and `Técnico`. Every protected route is guarded by at least one middleware function that compares the token's `rol` value against the required permission level.
+Monitor API enforces role-based access control (RBAC) via the `rol` claim embedded in every JWT. The claim is set at login and cannot be altered by the client. Three roles exist: `Administrador`, `Operador`, and `Tecnico`. Every protected route is guarded by at least one middleware function that compares the token's `rol` value against the required permission level.
 
 ## Role Summary
 
-| Role | Create expediente | Read expediente | Update expediente | Delete expediente | Manage users | Upload evidence | Delete evidence / concepts |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Administrador | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Operador | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Técnico | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Role | Expedientes (create/update) | Expedientes (read) | Expedientes (delete) | Levantamientos (create/read/update) | Levantamientos (delete) | Manage users | Upload evidence | Delete evidence |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Administrador | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Operador | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Tecnico | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ## Role Descriptions
 
@@ -22,8 +22,8 @@ Full access to every endpoint in the API. Administrators are the only users who 
 
 - Create new user accounts via `POST /api/auth/register`.
 - Delete expedientes (`DELETE /api/expedientes/:no_siniestro`).
-- Delete uploaded evidence files.
-- Delete levantamiento concepts and levantamiento records.
+- Delete uploaded evidence files (`DELETE /api/expedientes/:no_siniestro/evidencias/:id`).
+- Delete levantamiento concepts (`DELETE /api/levantamientos/conceptos/:id_concepto`) and full levantamiento records (`DELETE /api/levantamientos/:id`).
 
 <Note>
   An administrator **cannot delete their own account**. This guard prevents accidentally locking the system out of all administrative access.
@@ -34,13 +34,21 @@ Full access to every endpoint in the API. Administrators are the only users who 
 Broad write access to claim data, but no destructive or user-management operations. Operadores can:
 
 - Create, read, and update expedientes.
-- Upload evidence files (`POST /api/evidencias`).
+- Create, read, and update levantamientos and add concepts to them.
+- Upload evidence files (`POST /api/expedientes/:no_siniestro/evidencias`).
 
-Operadores **cannot** delete expedientes, delete evidence, delete levantamiento records, or create/manage other user accounts.
+Operadores **cannot** delete expedientes, delete individual evidence files, delete levantamiento records, or create/manage other user accounts.
 
-### Técnico
+### Tecnico
 
-Read-only access. Técnicos can view expedientes and their associated levantamientos, but **cannot write, update, or delete anything** in the system.
+Read access to expedientes and full create/update access to levantamientos, but no destructive operations and no evidence upload. Tecnicos can:
+
+- Read any expediente (`GET /api/expedientes`, `GET /api/expedientes/:no_siniestro`).
+- Create and update levantamiento records (`POST /api/levantamientos`, `PUT /api/levantamientos/:id`).
+- Add concepts to a levantamiento (`POST /api/levantamientos/:id/conceptos`).
+- Read levantamiento cost totals (`GET /api/levantamientos/:id/costo-total`).
+
+Tecnicos **cannot** create or update expedientes, upload or delete evidence files, delete any levantamiento records or concepts, or manage user accounts.
 
 ## Middleware Implementation
 
@@ -67,8 +75,15 @@ router.delete('/:no_siniestro', verificarToken, soloAdmin, eliminarExpediente);
 // Administradores and Operadores can create an expediente
 router.post('/', verificarToken, soloAdminOOperador, crearExpediente);
 
-// All authenticated users (including Técnico) can read expedientes
+// All authenticated users (including Tecnico) can read expedientes
 router.get('/:no_siniestro', verificarToken, obtenerExpediente);
+
+// All authenticated users (including Tecnico) can create levantamientos
+router.post('/levantamientos', crearLevantamiento); // verificarToken applied via router.use()
+
+// Only Administradores can delete a levantamiento or a concept
+router.delete('/levantamientos/:id', soloAdmin, eliminarLevantamiento);
+router.delete('/levantamientos/conceptos/:id_concepto', soloAdmin, eliminarConcepto);
 ```
 
 <Note>

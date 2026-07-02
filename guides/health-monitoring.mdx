@@ -20,7 +20,7 @@ curl http://localhost:3000/api/health
 
 ```json
 {
-  "ip": "192.168.1.10",
+  "ip": "192.168.1.42",
   "backend": true,
   "database": true,
   "disco": {
@@ -43,6 +43,9 @@ curl http://localhost:3000/api/health
 **Field reference:**
 
 <CardGroup cols={2}>
+  <Card title="ip" icon="network-wired">
+    The IP address of the client that made the request, as reported by Express (`req.ip`). This reflects the caller's address, not the server's address.
+  </Card>
   <Card title="backend" icon="server">
     Always `true` when this endpoint responds. Confirms the Express process is running and reachable on the network.
   </Card>
@@ -50,7 +53,7 @@ curl http://localhost:3000/api/health
     `true` if PostgreSQL responds successfully to a `SELECT 1` query; `false` if the connection times out or throws an error. A `false` value here means the API is running but cannot read or write data.
   </Card>
   <Card title="disco" icon="hard-drive">
-    Disk space (in GB, as strings) for the drive where the server process is running. Reported as `libre_GB`, `usado_GB`, and `total_GB`. On Windows the C: drive is queried; on Linux/macOS the drive hosting the current working directory is used. If free space drops below 10 GB, a `WARN` entry is written to the log.
+    Disk space (in GB, as strings) for the drive where the server process is running. Reported as `libre_GB`, `usado_GB`, and `total_GB`. On Windows the C: drive is queried via `wmic`; on Linux/macOS `df -BGB .` reports the filesystem hosting the current working directory. If free space drops below 10 GB, a `WARN` entry is written to the log.
   </Card>
   <Card title="evidencias" icon="folder-open">
     `archivos`: count of top-level entries in `EVIDENCIAS_DIR`. `tamaño_MB`: combined size of those entries in megabytes (as a string with one decimal place). Reflects the growth of uploaded evidence files over time.
@@ -104,7 +107,7 @@ When the server process starts, it runs the following checks in sequence and log
 
 <Steps>
   <Step title="checkBackend">
-    Verifies that a process is actively listening on port 3000 (the API port) by inspecting open network connections. Logs `success` if the port is bound, `error` if nothing is listening.
+    Verifies that a process is actively listening on port 3000 (the API port) by inspecting open network connections. On Windows it runs `netstat -ano | findstr :3000`; on Linux/macOS it runs `lsof -i :3000 | grep LISTEN`. Logs `success` if the port is bound, `error` if nothing is listening.
   </Step>
   <Step title="checkDatabase">
     Executes `SELECT 1` against the PostgreSQL database via Prisma. Logs `success` on a valid response, `error` with the exception message if the connection fails.
@@ -120,7 +123,7 @@ When the server process starts, it runs the following checks in sequence and log
   </Step>
 </Steps>
 
-All five checks repeat automatically every **5 minutes** while the server is running, keeping the log file current without requiring manual intervention.
+All five checks repeat automatically every **5 minutes** while the server is running (`setInterval(runStatusChecks, 5 * 60 * 1000)`), keeping the log file current without requiring manual intervention.
 
 ## Log file
 
@@ -142,3 +145,7 @@ Each line follows this format:
 ```
 
 Log levels used: `SUCCESS`, `INFO`, `WARN`, `ERROR`. The log file grows indefinitely — consider setting up log rotation (e.g. with `logrotate` on Linux) for long-running production deployments.
+
+<Note>
+  The `EVIDENCIAS_DIR` used by the health check is resolved as `path.resolve(process.cwd(), process.env["EVIDENCIAS_DIR"] ?? "../evidencias")`. If the environment variable is not set, it defaults to `../evidencias` relative to `process.cwd()`. Ensure this path exists before starting the server, or the `checkEvidencias` step will log a warning on every cycle.
+</Note>

@@ -1,13 +1,13 @@
 ---
-title: "DELETE /api/expedientes/:no_siniestro — Remove an Expediente Record"
-sidebarTitle: "DELETE /expedientes/:id"
-description: "Permanently delete an expediente and its related records. Restricted to Administrador role. Returns a confirmation object on success."
+title: "Delete Expediente — DELETE /api/expedientes/:no_siniestro"
+sidebarTitle: "Delete Expediente"
+description: "Permanently delete an expediente and all child records in a single transaction. Restricted to Administrador role. Returns a confirmation object on success."
 ---
 
 Permanently remove an expediente record from Monitor API. This action is **irreversible** and is restricted exclusively to users with the `Administrador` role. The delete is wrapped in a database transaction so that all related records are removed atomically — either everything is deleted or nothing is.
 
 <Warning>
-  Deleting an expediente **cascades** to all of its child records within the same transaction. The following tables are purged in order before the expediente itself is removed:
+  Deleting an expediente removes all of its child records within the same transaction. The following tables are purged in order before the expediente itself is removed:
 
   1. `checklist_item` — individual checklist line items
   2. `checklist` — inspection checklist records

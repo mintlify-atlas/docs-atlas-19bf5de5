@@ -1,10 +1,10 @@
 ---
-title: "GET /api/expedientes/:no_siniestro/evidencias — List Evidence Files"
-sidebarTitle: "GET /evidencias"
-description: "Retrieve all evidence records attached to an expediente. Returns file metadata including filename, MIME type, upload date, and storage path. Requires authentication."
+title: "List Evidence Files for an Expediente"
+sidebarTitle: "List Evidence"
+description: "Retrieve all evidence records for an expediente ordered newest-first. Returns ID, filename, MIME type, upload timestamp, storage path, and uploader ID."
 ---
 
-Retrieve the list of all evidence files (photos and documents) attached to a specific expediente. Records are returned in descending order by upload date, newest first.
+Retrieve every evidence file (photos and documents) attached to a specific expediente. Records are returned in descending order by upload date so the most recent file appears first in the array.
 
 ## Endpoint
 
@@ -50,7 +50,7 @@ Returns a JSON array of evidencia objects. An empty array (`[]`) is returned whe
 </ResponseField>
 
 <ResponseField name="ruta" type="string | null">
-  Absolute filesystem path where the file is stored on the server, e.g. `/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg`.
+  Absolute filesystem path where the file is stored on the server, e.g. `.../evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg`.
 </ResponseField>
 
 <ResponseField name="fecha_carga" type="string | null">
@@ -80,7 +80,7 @@ Returns a JSON array of evidencia objects. An empty array (`[]`) is returned whe
     "no_siniestro": "SIN-2024-001",
     "tipo": "image/jpeg",
     "nombre_archivo": "damage-photo.jpg",
-    "ruta": "/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
+    "ruta": "/srv/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
     "fecha_carga": "2024-04-23T18:25:43.511Z",
     "ubicacion_almacenamiento": "Local",
     "subido_por": 7
@@ -90,7 +90,7 @@ Returns a JSON array of evidencia objects. An empty array (`[]`) is returned whe
     "no_siniestro": "SIN-2024-001",
     "tipo": "application/pdf",
     "nombre_archivo": "poliza.pdf",
-    "ruta": "/app/evidencias/SIN-2024-001/DOCUMENTOS REPARACION/1713800000000_poliza.pdf",
+    "ruta": "/srv/app/evidencias/SIN-2024-001/DOCUMENTOS REPARACION/1713800000000_poliza.pdf",
     "fecha_carga": "2024-04-22T10:00:00.000Z",
     "ubicacion_almacenamiento": "Local",
     "subido_por": 3

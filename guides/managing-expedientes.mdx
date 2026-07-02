@@ -23,7 +23,11 @@ The typical progression is:
 Ingreso → Restauracion → Pendiente_de_salida → Salida
 ```
 
-Every time the `estado` field changes, Monitor API automatically writes a record to the `historial_estado` table that captures the previous state, the new state, an ISO timestamp, and the ID of the user who made the change. This gives you a full, tamper-evident audit trail for every claim.
+When an expediente is first created, Monitor API automatically writes the opening entry to the `historial_estado` table recording `estado_anterior` as `null`, `estado_nuevo` as `Ingreso`, a `fecha_cambio` timestamp, and the `cambiado_por` user ID of the creator. This gives you a full, tamper-evident audit trail for every claim from the moment it is opened.
+
+<Warning>
+  The `estado` field **cannot** be changed via `PUT /api/expedientes/:no_siniestro`. The service layer strips any `estado` value submitted through that endpoint. Status transitions must be managed through your own workflow logic (for example, direct database updates or a dedicated state-management endpoint in your environment). Only the initial `Ingreso` state is set automatically on creation.
+</Warning>
 
 <Tip>
   Always include `id_aseguradora` when creating an expediente so the record is properly linked to the insurer. You can retrieve a list of available insurers from `GET /api/expedientes/aseguradoras` before creating the claim.
@@ -85,15 +89,15 @@ All three endpoints require a valid `Authorization: Bearer <token>` header. The 
 `PUT /api/expedientes/:no_siniestro` performs a **partial update** — only include the fields you want to change. Requires the **Administrador** or **Operador** role.
 
 ```bash
-# Advance the claim to the Restauracion stage
+# Update the assigned technician and add an observation
 curl -X PUT http://localhost:3000/api/expedientes/SIN-2024-001 \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "estado": "Restauracion" }'
+  -d '{ "tecnico": "Carlos Mendoza", "observaciones": "Daño adicional en panel trasero" }'
 ```
 
 <Note>
-  Updating `estado` via the `PUT` endpoint automatically creates a new `historial_estado` row with the previous state, the new state, a timestamp, and the requesting user's ID. No manual history writes are needed.
+  The `estado` field is silently ignored by this endpoint — submitting it has no effect. Status is set to `Ingreso` at creation and is not modifiable through the standard update endpoint.
 </Note>
 
 Returns the updated expediente object on success. Returns `404` if the siniestro does not exist.

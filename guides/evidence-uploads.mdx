@@ -19,6 +19,8 @@ evidencias/
 
 Each file is saved as `<unix_timestamp_ms>_<original_filename>` (spaces in the original name are replaced with underscores). The timestamp prefix ensures filenames are unique even when the same file is uploaded more than once.
 
+The base directory itself is resolved at startup from `path.join(__dirname, '..', '..', 'evidencias')` in the routes file — that is, two directory levels above `src/routes/`, which places it at the repository root alongside the `src/` folder. You can override this path with the `EVIDENCIAS_DIR` environment variable.
+
 ## Upload limits
 
 The maximum file size is **50 MB** per upload, enforced by the multer middleware. Attempts to exceed this limit will be rejected with a `413 Payload Too Large` response before the file is written to disk.
@@ -150,7 +152,7 @@ curl -X DELETE http://localhost:3000/api/expedientes/SIN-2024-001/evidencias \
 ```
 
 <Warning>
-  Monitor API resolves the evidence base directory using the `EVIDENCIAS_DIR` environment variable. If the variable is not set, it defaults to `../evidencias` relative to `process.cwd()` (one level above the project root). Make sure this path exists and is writable by the user account running the Node.js process, otherwise all upload and folder-deletion operations will fail.
+  Monitor API resolves the evidence base directory using the `EVIDENCIAS_DIR` environment variable. If the variable is not set, it defaults to `../evidencias` relative to `process.cwd()` (the working directory of the Node.js process, typically the project root). Make sure this path exists and is writable by the user account running the Node.js process, otherwise all upload and folder-deletion operations will fail.
 
   Set it explicitly in your environment to avoid ambiguity:
 

@@ -1,7 +1,7 @@
 ---
 title: "Users API — List, Read, Update, and Delete System Users"
 sidebarTitle: "Users API"
-description: "Manage Monitor API user accounts. All user management endpoints require an active Administrador JWT token. Supports CRUD operations on the usuario resource."
+description: "Manage Monitor API user accounts. All endpoints require an active Administrador JWT. Supports listing, reading, updating, and deleting usuario records."
 ---
 
 The Users API allows Administrators to manage system accounts — list all users, retrieve a specific user, update their profile or role, and delete accounts. Every endpoint in this group is protected by two middleware layers: `verificarToken` (validates the JWT) and `soloAdmin` (asserts the `Administrador` role). Any request missing a valid token or issued from a non-Admin account will be rejected before the controller is reached.
@@ -177,7 +177,7 @@ Returns the full updated user object (same shape as the read endpoints — no `p
 
 ## DELETE /api/usuarios/:id
 
-Permanently deletes a user account from the database. Administrators cannot delete their own account — the middleware compares the token's `id` claim against the `:id` parameter and returns `400` if they match.
+Permanently deletes a user account from the database. Administrators cannot delete their own account — the controller compares the token's `id` claim against the `:id` parameter and returns `400` if they match.
 
 ### Path Parameters
 

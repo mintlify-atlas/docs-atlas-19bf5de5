@@ -1,7 +1,7 @@
 ---
 title: "Configure Monitor API: Environment Variables and Options"
 sidebarTitle: "Configuration"
-description: "All environment variables accepted by Monitor API, including database connection, JWT secret, evidence storage path, and runtime port settings."
+description: "All environment variables for Monitor API: DATABASE_URL, JWT_SECRET, and EVIDENCIAS_DIR. Includes hardcoded port details and structured logging behavior."
 ---
 
 Monitor API is configured exclusively through environment variables, loaded at process startup via `dotenv/config` (the `import "dotenv/config"` call at the top of `src/server.ts`). Place your variables in a `.env` file at the project root — this file is read before any other initialization code runs. All required variables must be present before starting the server; missing values will cause Prisma or the auth middleware to throw at startup.
@@ -63,14 +63,14 @@ const PORT = 3000;
 app.listen(PORT, "0.0.0.0", () => { ... });
 ```
 
-Port selection is **not currently configurable via an environment variable**. If you need to run Monitor on a different port (e.g. behind a reverse proxy or in a containerized environment), update the `PORT` constant in `src/server.ts` and rebuild.
+Port selection is **not configurable via an environment variable**. If you need to run Monitor on a different port (e.g. behind a reverse proxy or in a containerized environment), update the `PORT` constant in `src/server.ts` and rebuild.
 
 ## Logging
 
 Monitor API uses a custom structured logger (`src/utils/logger.ts`) that writes to two destinations simultaneously on every log call:
 
-- **`logs/app.log`** — A plain-text append-only log file. Each line contains an ISO 8601 timestamp, log level, context label, message, and optional JSON-serialized data. The `logs/` directory is created automatically at startup if it does not exist.
-- **stdout** — Color-coded output for interactive terminals, using ANSI escape codes:
+- **`logs/app.log`** — A plain-text append-only log file. Each line contains an ISO 8601 timestamp, log level, context label, message, and optional JSON-serialized data on the same line separated by ` | `. The `logs/` directory is created automatically at startup if it does not exist.
+- **stdout** — Color-coded output for interactive terminals, using ANSI escape codes. When a log call includes structured data, it is pretty-printed on the following lines prefixed with `→`:
 
   | Level | Color |
   |---|---|
@@ -81,7 +81,7 @@ Monitor API uses a custom structured logger (`src/utils/logger.ts`) that writes 
 
   Context labels are printed in magenta and timestamps in grey for quick visual scanning.
 
-Example `logs/app.log` entries:
+Example `logs/app.log` entries (file format — compact single-line):
 
 ```
 [2025-07-10T12:00:00.000Z] [SUCCESS] [Backend] Servidor iniciado | {"puerto":3000}

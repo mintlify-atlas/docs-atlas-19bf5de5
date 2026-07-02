@@ -1,10 +1,10 @@
 ---
-title: "GET /api/expedientes/:no_siniestro — Retrieve a Single Expediente"
-sidebarTitle: "GET /expedientes/:id"
-description: "Fetch a single expediente by its siniestro number, including related checklists, evidence metadata, and levantamiento records. Requires authentication."
+title: "Get Expediente — GET /api/expedientes/:no_siniestro"
+sidebarTitle: "Get Expediente"
+description: "Fetch a single expediente by siniestro number, including the linked insurer, status-change history, and evidence metadata. Requires authentication."
 ---
 
-Retrieve a single expediente and all of its related records in one request. Unlike the list endpoint, this response includes the full set of scalar fields plus nested relations: `aseguradora`, `historial_estado` (audit history, newest-first), and `evidencia` (file metadata). All authenticated roles may call this endpoint.
+Retrieve a single expediente and all of its related records in one request. Unlike the list endpoint, this response includes the full set of scalar fields plus three nested relations: `aseguradora` (linked insurer), `historial_estado` (status-change audit log, newest-first), and `evidencia` (file metadata). All authenticated roles may call this endpoint.
 
 ---
 

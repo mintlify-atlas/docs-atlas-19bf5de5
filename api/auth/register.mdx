@@ -1,14 +1,14 @@
 ---
 title: "POST /api/auth/register — Create a New System User"
 sidebarTitle: "POST /auth/register"
-description: "Create a new Monitor API user with a specified role. Requires an active Administrador JWT token. Returns the created user profile without the password hash."
+description: "Create a new Monitor API user with a specified role. Requires an Administrador JWT token. Returns the created user profile without the password hash."
 ---
 
 This endpoint creates a new user account in the Monitor system. Only authenticated users with the `Administrador` role can create new accounts — there is no self-registration flow. The new user's password is immediately hashed before being stored; the plaintext value is never persisted.
 
 ## Endpoint
 
-`POST /api/auth/register` — **requires `Authorization: Bearer <token>` with `Administrador` role.**
+`POST /api/auth/register` — **requires `Authorization: Bearer <token>` with `Administrador` role.** Protected by the `verificarToken` and `soloAdmin` middleware chain.
 
 ---
 

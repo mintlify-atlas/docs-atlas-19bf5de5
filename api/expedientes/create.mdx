@@ -1,7 +1,7 @@
 ---
-title: "POST /api/expedientes — Create a New Insurance Claim Expediente"
-sidebarTitle: "POST /expedientes"
-description: "Create a new expediente record for an incoming vehicle. Requires a unique siniestro number and Administrador or Operador role. Initial status is Ingreso."
+title: "POST /api/expedientes — Create an Expediente Record"
+sidebarTitle: "Create Expediente"
+description: "Create a new expediente for an incoming vehicle. Requires a unique siniestro number and Administrador or Operador role. Initial status is always Ingreso."
 ---
 
 Create a new insurance claim record in Monitor API. The siniestro number (`no_siniestro`) is the primary key — it must be unique across all records. On success the API automatically sets `estado` to `Ingreso` and writes the first `historial_estado` audit entry. Técnico users do not have write access and will receive `403`.
@@ -201,7 +201,11 @@ Boolean flags indicating whether each required document has been handed in. Omit
 </ParamField>
 
 <Note>
-  The `estado` field is **not** accepted in the request body. It is always initialized to `Ingreso` by the service layer and can only be changed later via `PUT /api/expedientes/:no_siniestro`.
+  The `estado` field is **not** accepted in the request body. It is always hardcoded to `Ingreso` by the service layer. Status transitions are managed by a dedicated workflow module and cannot be set through this endpoint.
+</Note>
+
+<Note>
+  `creado_por` is **not** a client-provided field. It is set automatically from the authenticated user's JWT `id` claim.
 </Note>
 
 ---
@@ -238,7 +242,7 @@ Returns the full expediente object as persisted. All fields are included (same s
 </ResponseField>
 
 <ResponseField name="creado_por" type="integer | null">
-  Set from the authenticated user's JWT `id` claim.
+  Set automatically from the authenticated user's JWT `id` claim.
 </ResponseField>
 
 <Tip>

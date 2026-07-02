@@ -1,7 +1,7 @@
 ---
-title: "Monitor API Data Model: Schema and Relationships"
+title: "Monitor API PostgreSQL Data Model: Schema and Relationships"
 sidebarTitle: "Data Model"
-description: "Explore the PostgreSQL schema powering Monitor API — expedientes, evidencias, levantamiento de daños, checklists, usuarios, and aseguradoras with their relationships."
+description: "PostgreSQL schema for Monitor API: models for expedientes, levantamientos, evidencias, checklists, users, and insurers with full field reference."
 ---
 
 Monitor API is backed by a PostgreSQL database managed with Prisma ORM. The schema models the complete lifecycle of an auto-body insurance claim — from initial intake through damage assessment, evidence collection, inspection checklists, and final status transitions. All models are defined in `prisma/schema.prisma`.
@@ -16,10 +16,13 @@ Monitor API is backed by a PostgreSQL database managed with Prisma ORM. The sche
     A damage survey record linked to an expediente. Captures vehicle condition flags and a list of cost line items (`levantamiento_concepto`).
   </Card>
   <Card title="evidencia" icon="image">
-    Metadata for an uploaded file (photo, document, etc.) associated with an expediente. Tracks storage location, MIME type, and the user who uploaded it.
+    Metadata for an uploaded file (photo, document, etc.) associated with an expediente. Tracks storage location, file type, and the user who uploaded it.
   </Card>
   <Card title="checklist" icon="check-square">
-    An inspection checklist linked to an expediente. Records inspector, assigned staff, condition flags, deductible, and delivery details.
+    An inspection checklist linked to an expediente. Records inspector, assigned staff, condition flags, deductible, and delivery details. Contains many `checklist_item` records.
+  </Card>
+  <Card title="historial_estado" icon="clock">
+    Immutable audit log of every status transition on an expediente. Each row captures the previous state, the new state, the timestamp, and the user who triggered the change.
   </Card>
   <Card title="aseguradora" icon="building">
     An insurance company record. Expedientes reference an aseguradora to associate the claim with the issuing insurer.
@@ -172,7 +175,7 @@ Metadata record for every file uploaded to a claim. The actual file is stored at
 </ResponseField>
 
 <ResponseField name="tipo" type="String?">
-  MIME type of the uploaded file (e.g. `"image/jpeg"`, `"application/pdf"`).
+  Type of the uploaded file (e.g. `"image/jpeg"`, `"application/pdf"`).
 </ResponseField>
 
 <ResponseField name="nombre_archivo" type="String?">
@@ -226,7 +229,63 @@ An inspection checklist attached to an expediente. Captures the full pre-deliver
 </ResponseField>
 
 <ResponseField name="checklist_item" type="checklist_item[]">
-  Individual line items in the checklist (system name, item name, and value).
+  Individual line items in the checklist. See below.
+</ResponseField>
+
+---
+
+### checklist_item
+
+A single line item within a `checklist`. Each item records the system category it belongs to, its name, and the observed value or condition.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="id_checklist" type="Int" required>
+  Foreign key to the parent `checklist`.
+</ResponseField>
+
+<ResponseField name="sistema" type="String?">
+  System or category the item belongs to (e.g. `"Motor"`, `"Carrocería"`).
+</ResponseField>
+
+<ResponseField name="nombre_item" type="String?">
+  Name of the specific item being inspected.
+</ResponseField>
+
+<ResponseField name="valor" type="String?">
+  Observed value or condition recorded for this item.
+</ResponseField>
+
+---
+
+### historial_estado
+
+An immutable audit log that records every status transition on an expediente. A new row is appended each time the `estado` field of an expediente changes, providing a complete, timestamped history of the claim's lifecycle.
+
+<ResponseField name="id" type="Int" required>
+  Auto-incremented primary key.
+</ResponseField>
+
+<ResponseField name="no_siniestro" type="String" required>
+  Foreign key to the `expediente` whose status changed.
+</ResponseField>
+
+<ResponseField name="estado_anterior" type="estado_enum?">
+  The `estado` value before the transition. Nullable to accommodate the initial state assignment on creation.
+</ResponseField>
+
+<ResponseField name="estado_nuevo" type="estado_enum" required>
+  The `estado` value after the transition.
+</ResponseField>
+
+<ResponseField name="fecha_cambio" type="Timestamp" required>
+  Exact timestamp of the state change. Defaults to `now()`.
+</ResponseField>
+
+<ResponseField name="cambiado_por" type="Int?">
+  Foreign key to the `usuario` who triggered the state change. Nullable for system-initiated transitions.
 </ResponseField>
 
 ---
@@ -294,8 +353,8 @@ System users who authenticate with the API.
   | Value | Description |
   |---|---|
   | `Administrador` | Full system access |
-  | `Operador` | Create and update, no destructive actions |
-  | `Tecnico` | Read-only access |
+  | `Operador` | Create and update expedientes and levantamientos; no destructive actions |
+  | `Tecnico` | Read expedientes; create and update levantamientos; no destructive actions |
 </ResponseField>
 
 <ResponseField name="ubicacion_enum" type="enum">
@@ -316,11 +375,11 @@ The following diagram summarises the entity relationships in plain text:
 ```
 aseguradora ──< expediente >── usuario
                     │
-        ┌───────────┼──────────────┐──────────────┐
+        ┌───────────┼──────────────┬──────────────┐
         │           │              │               │
     evidencia  checklist  levantamiento_danios  historial_estado
-                                │
-                    levantamiento_concepto
+                   │                    │
+            checklist_item   levantamiento_concepto
 ```
 
 - An **expediente** belongs to one `aseguradora` (nullable) and one `usuario` (the creator, nullable).
@@ -328,7 +387,4 @@ aseguradora ──< expediente >── usuario
 - A **levantamiento_danios** has many `levantamiento_concepto` line items.
 - A **checklist** has many `checklist_item` records.
 - A **usuario** is referenced by `evidencia` (uploader), `expediente` (creator), and `historial_estado` (who changed the state).
-
-<Note>
-  `historial_estado` automatically records every state transition on an expediente. Each row captures the previous state (`estado_anterior`), the new state (`estado_nuevo`), the exact timestamp (`fecha_cambio`, defaults to `now()`), and the ID of the user who triggered the change (`cambiado_por`). This gives a full, immutable audit trail of every status change for every claim.
-</Note>
+- **historial_estado** appends a new row on every `estado` transition. Each row captures `estado_anterior`, `estado_nuevo`, `fecha_cambio` (defaults to `now()`), and `cambiado_por` (the user ID).

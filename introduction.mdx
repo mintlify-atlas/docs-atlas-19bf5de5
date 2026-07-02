@@ -1,7 +1,7 @@
 ---
 title: "Monitor API: REST Backend for Insurance Claim Workflows"
 sidebarTitle: "Introduction"
-description: "Monitor API manages auto-body shop insurance claims end-to-end — expediente tracking, evidence uploads, damage surveys, and role-based user access over a single REST API."
+description: "Monitor API is a REST backend for Mexican auto-body shops: expediente tracking, evidence uploads, damage surveys, and role-based access in one API."
 ---
 
 Monitor API is a Node.js/TypeScript REST backend built for Mexican auto-body shops that handle insurance repair claims. Shop administrators, service advisors, and technicians use it to track every claim — called an **expediente** — from the moment a vehicle arrives through final delivery, while adjusters can retrieve damage surveys, photos, and checklist data at any stage of the workflow. By centralizing claim state, evidence storage, and user roles in a single API, Monitor eliminates the spreadsheets and paper forms that traditionally slow repair-to-payment cycles.
@@ -61,6 +61,7 @@ Monitor API is built on a small, production-tested stack:
 - **Prisma ORM** — Type-safe database access against a PostgreSQL 15+ instance. The schema is version-controlled in `prisma/schema.prisma` and applied via Prisma Migrate.
 - **PostgreSQL** — The single source of truth for all claim, user, and evidence metadata.
 - **JWT authentication** — Tokens are issued at `/api/auth/login`, signed with `JWT_SECRET`, and expire after 8 hours. Every protected route validates the `Authorization: Bearer <token>` header.
+- **Insurer seed data** — On every startup, `seedAseguradoras()` runs before the server begins accepting requests. It upserts the three built-in insurers (AXA, HDI, Qualitas) from logo assets in the `assets/` directory, so the database is always consistent with the bundled reference data.
 - **mDNS / Bonjour discovery** — On startup the server publishes a `_monitor._tcp` service named `Monitor API` on port 3000, so shop computers can locate the API without configuring static IPs. The `GET /discovery` endpoint exposes the same information over HTTP.
 - **Structured logging** — All server events are written to `logs/app.log` and to stdout with a color-coded format (see [Configuration](/configuration) for details).
 - **TypeScript (ES2022, NodeNext modules)** — The entire codebase is strictly typed. The production build compiles to `dist/` via `tsc`; development runs via `tsx watch` for instant reloads.

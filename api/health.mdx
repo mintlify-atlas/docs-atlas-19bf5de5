@@ -1,7 +1,7 @@
 ---
 title: "GET /api/health — System Health and Status Endpoint"
-sidebarTitle: "GET /health"
-description: "Check backend availability, database connectivity, disk space, evidence file storage, RAM usage, and total expediente count from a single unauthenticated endpoint."
+sidebarTitle: "System Health"
+description: "Check backend availability, database connectivity, disk space, evidence file storage, RAM usage, and expediente count via one unauthenticated endpoint."
 ---
 
 The health endpoint provides a real-time snapshot of Monitor API's operational status. It requires no authentication and is suitable for polling from external monitoring tools, load balancers, or dashboard widgets. A single request triggers live checks against PostgreSQL, the local filesystem, the evidence storage directory, and Node.js process memory — all results are returned in one JSON object.
@@ -26,9 +26,9 @@ This endpoint always returns HTTP `200`. Inspect the individual boolean fields (
   "backend": true,
   "database": true,
   "disco": {
-    "libre_GB": "45.2",
-    "usado_GB": "14.8",
-    "total_GB": "60.0"
+    "libre_GB": "45",
+    "usado_GB": "14",
+    "total_GB": "60"
   },
   "evidencias": {
     "archivos": 312,
@@ -43,7 +43,7 @@ This endpoint always returns HTTP `200`. Inspect the individual boolean fields (
 ```
 
 <ResponseField name="ip" type="string">
-  Client IP address as seen by the server, derived from `req.ip` or `req.socket.remoteAddress`. Useful for verifying network routing behind a proxy or reverse proxy.
+  Client IP address as seen by the server, derived from `req.ip || req.socket.remoteAddress || "desconocida"`. Useful for verifying network routing behind a proxy or reverse proxy.
 </ResponseField>
 
 <ResponseField name="backend" type="boolean">
@@ -55,19 +55,19 @@ This endpoint always returns HTTP `200`. Inspect the individual boolean fields (
 </ResponseField>
 
 <ResponseField name="disco" type="object">
-  Disk usage statistics for the volume where the API process is running. On Linux, sourced from `df -BGB`. On Windows, sourced from `wmic logicaldisk`.
+  Disk usage statistics for the volume where the API process is running. On Linux, sourced from `df -BGB`; values are integer strings (e.g. `"45"`). On Windows, sourced from `wmic logicaldisk`; values are formatted to one decimal place (e.g. `"45.2"`).
 
   <Expandable title="disco fields">
     <ResponseField name="disco.libre_GB" type="string">
-      Free disk space available, in gigabytes, formatted to one decimal place (e.g. `"45.2"`).
+      Free disk space available, in gigabytes. On Linux, an integer string (e.g. `"45"`). On Windows, formatted to one decimal place (e.g. `"45.2"`).
     </ResponseField>
 
     <ResponseField name="disco.usado_GB" type="string">
-      Used disk space on the current volume, in gigabytes, formatted to one decimal place.
+      Used disk space on the current volume, in gigabytes. On Linux, an integer string. On Windows, formatted to one decimal place.
     </ResponseField>
 
     <ResponseField name="disco.total_GB" type="string">
-      Total disk capacity of the current volume, in gigabytes, formatted to one decimal place.
+      Total disk capacity of the current volume, in gigabytes. On Linux, an integer string. On Windows, formatted to one decimal place.
     </ResponseField>
   </Expandable>
 </ResponseField>

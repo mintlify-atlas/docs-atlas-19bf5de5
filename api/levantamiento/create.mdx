@@ -1,7 +1,7 @@
 ---
 title: "POST /api/levantamientos — Create a New Damage Survey"
-sidebarTitle: "POST /levantamientos"
-description: "Create a levantamiento de daños linked to an expediente. Supply vehicle details, damage flags, and an optional first cost concept. Requires authentication."
+sidebarTitle: "Create Survey"
+description: "Create a levantamiento de daños linked to an expediente. Supply vehicle details, damage flags, and optional inline concepts. Requires authentication."
 ---
 
 Create a new damage survey for a vehicle claim. The survey records the vehicle's condition at intake — its make, model, identification details, which systems are damaged, and any additional notes. Once created, itemized repair cost concepts can be attached via the [Conceptos](/api/levantamiento/conceptos) endpoints.
@@ -114,6 +114,16 @@ Requires a valid Bearer token. All authenticated roles (`Administrador`, `Operad
 
 <ParamField body="trasmision" type="boolean">
   Set to `true` if the transmission is damaged.
+</ParamField>
+
+<ParamField body="conceptos" type="array">
+  An optional array of cost concept objects to create together with the levantamiento in a single request. Each object may contain:
+
+  - `concepto` (string) — description of the repair item.
+  - `costo` (number) — unit cost as a decimal, e.g. `3500.00`.
+  - `claves` (string) — optional item code or SKU.
+
+  If omitted or empty, the levantamiento is created with no concepts. Concepts can also be added later via [POST /api/levantamientos/:id/conceptos](/api/levantamiento/conceptos).
 </ParamField>
 
 ## Request Example

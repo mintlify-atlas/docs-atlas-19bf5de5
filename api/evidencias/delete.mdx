@@ -1,7 +1,7 @@
 ---
-title: "DELETE /api/expedientes/:no_siniestro/evidencias — Remove Evidence Files"
-sidebarTitle: "DELETE /evidencias"
-description: "Delete a single evidence record by ID, or remove the entire evidence folder for an expediente. Single deletion requires Administrador; folder deletion requires Administrador or Operador."
+title: "Delete Evidence Files for an Expediente"
+sidebarTitle: "Delete Evidence"
+description: "Delete a single evidence record by ID (Administrador only), or remove the entire evidence folder for an expediente (Administrador or Operador)."
 ---
 
 Monitor API provides two evidence deletion endpoints: one to delete a single file record by ID, and one to remove the entire evidence folder for an expediente (typically used when rolling back a claim creation). Both endpoints require authentication; role requirements differ between them.
@@ -16,7 +16,7 @@ DELETE /api/expedientes/:no_siniestro/evidencias/:id
 
 **Authentication:** Bearer token required. Only the `Administrador` role may call this endpoint.
 
-Deletes the evidence record from the database **and** attempts to remove the physical file from disk. If the stored `ruta` path exists on the filesystem, the file is deleted with `fs.unlinkSync` before the database record is removed.
+Deletes the evidence record from the database **and** removes the physical file from disk. If the stored `ruta` path exists on the filesystem, the file is deleted with `fs.unlinkSync` before the database record is removed.
 
 <Note>
   Physical file deletion is a best-effort operation — if the file is already missing from disk, the deletion proceeds and the database record is still removed without error.
@@ -87,7 +87,7 @@ DELETE /api/expedientes/:no_siniestro/evidencias
 
 **Authentication:** Bearer token required. `Administrador` and `Operador` roles may call this endpoint.
 
-Recursively removes the `evidencias/<no_siniestro>/` directory and all of its contents from disk using `fs.rm({ recursive: true, force: true })`. This wipes both the `evidencias/` (photos) and `DOCUMENTOS REPARACION/` subfolders in a single operation. Database records are **not** removed by this endpoint — use [Delete a Single Evidence File](#delete-a-single-evidence-file) to clean up individual DB rows if needed.
+Recursively removes the `evidencias/<no_siniestro>/` directory and all of its contents from disk using `fsp.rm(carpeta, { recursive: true, force: true })`. This permanently wipes both the `evidencias/` (photos) and `DOCUMENTOS REPARACION/` subfolders in a single operation. Database records are **not** removed by this endpoint — use [Delete a Single Evidence File](#delete-a-single-evidence-file) to clean up individual DB rows if needed.
 
 <Warning>
   This operation is **irreversible**. All files uploaded for the expediente — photos and documents alike — are permanently deleted from disk. There is no undo. Use this endpoint only when intentionally rolling back a claim, such as during a failed expediente creation workflow.
@@ -96,7 +96,7 @@ Recursively removes the `evidencias/<no_siniestro>/` directory and all of its co
 ### Path Parameters
 
 <ParamField path="no_siniestro" type="string" required>
-  The siniestro number of the expediente whose evidence folder should be removed (e.g. `SIN-2024-001`). The server validates that the resolved path stays within the `EVIDENCIAS_BASE` directory to prevent path traversal attacks.
+  The siniestro number of the expediente whose evidence folder should be removed (e.g. `SIN-2024-001`). The server validates that the resolved path stays within `EVIDENCIAS_BASE` (the hardcoded base directory derived from `__dirname` in `evidencias.routes.ts`) to prevent path traversal attacks.
 </ParamField>
 
 ### Example Request

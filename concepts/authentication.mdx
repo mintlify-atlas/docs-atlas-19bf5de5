@@ -55,7 +55,7 @@ curl http://localhost:3000/api/expedientes \
   -H "Authorization: Bearer eyJhbGci..."
 ```
 
-The server middleware (`verificarToken`) extracts the header, verifies the JWT signature and expiry, and attaches the decoded user payload to the request before passing it to the route handler. Requests that omit the header or present a malformed value are rejected immediately with `401`.
+The server middleware (`verificarToken`) extracts the header, verifies the JWT signature and expiry using the server's `JWT_SECRET`, and attaches the decoded user payload to the request before passing it to the route handler. Requests that omit the header or present a malformed value are rejected immediately with `401`.
 
 ## Token Payload
 
@@ -98,11 +98,19 @@ The decoded JWT contains the following claims:
 </ResponseField>
 
 <ResponseField name="403 Forbidden" type="object">
-  Returned when the request is authenticated (valid token) but the user's role does not meet the requirement of the endpoint being accessed.
+  Returned when the request is authenticated (valid token) but the user's role does not meet the requirement of the endpoint being accessed. The message varies depending on which middleware rejected the request.
 
   ```json
   { "error": "Acceso restringido a administradores" }
   ```
+
+  Returned by `soloAdmin` — for endpoints that require the `Administrador` role, such as deleting expedientes, evidence files, levantamiento records, or user accounts.
+
+  ```json
+  { "error": "Acceso restringido a administradores y operadores" }
+  ```
+
+  Returned by `soloAdminOOperador` — for endpoints that require at least the `Operador` role, such as creating or updating expedientes and uploading evidence files.
 </ResponseField>
 
 <Warning>

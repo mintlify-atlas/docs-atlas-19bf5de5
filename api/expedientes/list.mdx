@@ -1,7 +1,7 @@
 ---
-title: "GET /api/expedientes — List All Insurance Claim Records"
-sidebarTitle: "GET /expedientes"
-description: "Retrieve all expediente records. Returns an array of claim objects including vehicle info, status, assigned insurer, and key dates. Requires authentication."
+title: "GET /api/expedientes — List All Expediente Records"
+sidebarTitle: "List Expedientes"
+description: "Retrieve all expediente records as a summary array ordered by intake date. Also covers the insurers catalogue endpoint. Requires authentication."
 ---
 
 Retrieve every expediente stored in Monitor API. The response is a summary array ordered by `fecha_ingreso` descending — it omits heavy nested relations to keep list payloads small. All authenticated roles (Administrador, Operador, Técnico) can call this endpoint.

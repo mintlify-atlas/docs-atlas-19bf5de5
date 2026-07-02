@@ -16,6 +16,8 @@ A *levantamiento de daños* is a damage survey linked to an expediente. It captu
 
 The only required field is `no_siniestro`, which must match an existing expediente. All other fields are optional and can be updated later with `PUT /api/levantamientos/:id`.
 
+Any authenticated user may create a levantamiento — this endpoint requires a valid token (`verificarToken`) but has no role restriction beyond that.
+
 **Vehicle detail fields:**
 
 | Field | Type | Description |
@@ -135,7 +137,7 @@ curl http://localhost:3000/api/levantamientos/42/costo-total \
 }
 ```
 
-`total` is a numeric value. Returns `404` if the levantamiento does not exist.
+`total` is a plain JavaScript number (the result of summing each concept's `costo` cast to `Number`). Returns `404` if the levantamiento does not exist.
 
 ## Fetching levantamientos
 
@@ -145,7 +147,7 @@ curl http://localhost:3000/api/levantamientos/42/costo-total \
 
     Returns all levantamientos, each with its `levantamiento_concepto` array included, ordered by `id` descending.
 
-    Filter by claim using the query parameter:
+    Filter by claim using the optional query parameter:
 
     `GET /api/levantamientos?no_siniestro=SIN-2024-001`
   </Card>
@@ -165,7 +167,7 @@ curl http://localhost:3000/api/levantamientos/42/costo-total \
 
 `PUT /api/levantamientos/:id`
 
-Performs a partial update on the levantamiento's own fields. Only include the fields you want to change; all others remain unchanged. The `fecha` field accepts the same `DD/MM/YYYY` or `YYYY-MM-DD` formats as on creation.
+Performs a partial update on the levantamiento's own fields. Only include the fields you want to change; all others remain unchanged. The `fecha` field accepts the same `DD/MM/YYYY` or `YYYY-MM-DD` formats as on creation. Any authenticated user may call this endpoint.
 
 ```bash
 curl -X PUT http://localhost:3000/api/levantamientos/42 \

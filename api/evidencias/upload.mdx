@@ -1,10 +1,10 @@
 ---
-title: "POST /api/expedientes/:no_siniestro/evidencias — Upload an Evidence File"
-sidebarTitle: "POST /evidencias"
-description: "Upload a photo or document as evidence for an expediente. Accepts multipart form data up to 50 MB. Files are stored locally organized by siniestro number and type."
+title: "Upload an Evidence File for an Expediente"
+sidebarTitle: "Upload Evidence"
+description: "Upload a photo or document as evidence for an expediente. Accepts multipart/form-data up to 50 MB. Requires Administrador or Operador role."
 ---
 
-Upload a file as evidence for an insurance claim expediente. The file is stored on the server's local filesystem inside a folder named after the siniestro number. A new `evidencia` database record is created with the file's metadata and a reference to the stored path.
+Upload a file as evidence for an insurance claim expediente. The file is stored on the server's local filesystem inside a folder named after the siniestro number and organised by type. A new `evidencia` database record is created with the file's metadata and a reference to the stored path.
 
 ## Endpoint
 
@@ -23,7 +23,7 @@ POST /api/expedientes/:no_siniestro/evidencias
 ## Query Parameters
 
 <ParamField query="tipo" type="string">
-  Controls which subfolder the file lands in. When set to `"documento"`, the file is saved under `DOCUMENTOS REPARACION/`. Omit this parameter (or use any other value) to store the file as a photo under the `evidencias/` subfolder.
+  Controls which subfolder the file lands in. When set to `"documento"`, the file is saved under `DOCUMENTOS REPARACION/`. Omit this parameter (or use any other value) to store the file under the `evidencias/` subfolder.
 
   | Value | Destination subfolder |
   |-------|----------------------|
@@ -39,9 +39,9 @@ Content-Type: `multipart/form-data`
   The file to upload. Any MIME type is accepted. Maximum file size is **50 MB** — requests exceeding this limit are rejected with `413`.
 </ParamField>
 
-<Warning>
-  The `EVIDENCIAS_DIR` environment variable (resolved relative to the project root as `../../evidencias` from the routes file) controls the base directory where all evidence folders are created. Ensure this path exists and is writable by the Node.js process before uploading files.
-</Warning>
+<Note>
+  The evidence base directory is resolved at startup as `path.join(__dirname, '..', '..', 'evidencias')` inside `evidencias.routes.ts`, placing it two levels above the compiled routes file (i.e. `<project-root>/evidencias/`). This path is hardcoded in the routes file and is **not** controlled by the `EVIDENCIAS_DIR` environment variable — that variable is only used by the health and status-check utilities for reporting purposes. Ensure `<project-root>/evidencias/` exists and is writable by the Node.js process before uploading files.
+</Note>
 
 ## Example Requests
 
@@ -61,7 +61,7 @@ curl -X POST "http://localhost:3000/api/expedientes/SIN-2024-001/evidencias?tipo
 
 ## File Storage Layout
 
-Files are organized under the base `evidencias/` directory as follows:
+Files are organised under the `evidencias/` base directory as follows:
 
 ```
 evidencias/
@@ -72,7 +72,7 @@ evidencias/
         └── 1713800000000_poliza.pdf
 ```
 
-Filenames are saved as `<unix_timestamp_ms>_<sanitized_original_name>` — spaces in the original filename are replaced with underscores. This scheme prevents collisions when the same filename is uploaded multiple times.
+Filenames are saved as `<unix_timestamp_ms>_<sanitized_original_name>` — spaces in the original filename are replaced with underscores (`file.originalname.replace(/\s+/g, '_')`). This scheme prevents collisions when the same filename is uploaded multiple times.
 
 <Tip>
   The destination subfolder is created automatically with `fs.mkdirSync({ recursive: true })` if it does not already exist, so no manual directory setup is needed beyond ensuring the base path is writable.
@@ -93,7 +93,7 @@ Returns the newly created `evidencia` database record.
 </ResponseField>
 
 <ResponseField name="tipo" type="string | null">
-  MIME type of the uploaded file as detected by multer (e.g. `image/jpeg`, `application/pdf`).
+  MIME type of the uploaded file as reported by multer (e.g. `image/jpeg`, `application/pdf`).
 </ResponseField>
 
 <ResponseField name="nombre_archivo" type="string | null">
@@ -101,7 +101,7 @@ Returns the newly created `evidencia` database record.
 </ResponseField>
 
 <ResponseField name="ruta" type="string | null">
-  Absolute filesystem path of the saved file, as returned by multer after writing to disk. Use this path to serve or reference the file later.
+  Absolute filesystem path of the saved file as returned by multer after writing to disk. Use this path to serve or reference the file later.
 </ResponseField>
 
 <ResponseField name="fecha_carga" type="string | null">
@@ -124,7 +124,7 @@ Returns the newly created `evidencia` database record.
   "no_siniestro": "SIN-2024-001",
   "tipo": "image/jpeg",
   "nombre_archivo": "damage-photo.jpg",
-  "ruta": "/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
+  "ruta": "/srv/app/evidencias/SIN-2024-001/evidencias/1713900000000_damage-photo.jpg",
   "fecha_carga": "2024-04-23T18:25:43.511Z",
   "ubicacion_almacenamiento": "Local",
   "subido_por": 7

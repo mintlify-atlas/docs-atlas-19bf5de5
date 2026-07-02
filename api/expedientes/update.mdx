@@ -1,13 +1,13 @@
 ---
-title: "PUT /api/expedientes/:no_siniestro — Update an Expediente's Fields or Status"
-sidebarTitle: "PUT /expedientes/:id"
-description: "Partially update any field of an existing expediente including status transitions. State changes are automatically recorded in the audit history. Requires Administrador or Operador."
+title: "Update Expediente — PUT /api/expedientes/:no_siniestro"
+sidebarTitle: "Update Expediente"
+description: "Partially update fields on an existing expediente. Sending estado has no effect — it is always stripped. Requires Administrador or Operador role."
 ---
 
 Update one or more fields on an existing expediente. Send only the fields you want to change — omitted fields are left exactly as they are. All date and timestamp fields are re-parsed server-side, so you can safely send a `"YYYY-MM-DD"` string even on an update.
 
 <Note>
-  The `estado` field **cannot** be changed through this endpoint. Status transitions are managed by a dedicated workflow module. Sending `estado` in the request body has no effect — it is silently stripped before the update is applied.
+  The `estado` field **cannot** be changed through this endpoint. Any `estado` value sent in the request body is silently stripped before the update is applied. Status transitions are managed by a dedicated workflow module.
 </Note>
 
 ---
@@ -233,7 +233,7 @@ Returns the complete updated expediente as persisted (flat scalar fields, no nes
 </ResponseField>
 
 <ResponseField name="estado" type="string">
-  The current workflow status (unaffected by this call — managed by the status workflow module).
+  The current workflow status, unchanged by this call.
 </ResponseField>
 
 <Tip>

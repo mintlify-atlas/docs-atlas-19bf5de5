@@ -44,7 +44,7 @@ This guide walks you from a fresh checkout to a running Monitor API server with 
   </Step>
 
   <Step title="Configure Environment">
-    Copy the example below into a `.env` file at the project root. All variables are loaded at startup via `dotenv/config`.
+    Create a `.env` file at the project root with the following content. All variables are loaded at startup via `dotenv/config`.
 
     ```bash
     # .env
@@ -73,15 +73,28 @@ This guide walks you from a fresh checkout to a running Monitor API server with 
     pnpm dev
     ```
 
-    You should see output similar to the following in your terminal:
+    Before binding to port 3000, the server runs `seedAseguradoras()` to upsert the three built-in insurers (AXA, HDI, Qualitas) into the database. Once that completes, you will see output similar to the following in your terminal:
 
     ```
-    2025-07-10T12:00:00.000Z [Backend] [SUCCESS] Servidor iniciado | {"puerto":3000}
-    2025-07-10T12:00:00.000Z [Red]     [INFO]    Servicio mDNS anunciado | {"tipo":"_monitor._tcp"}
-    2025-07-10T12:00:00.000Z [Red]     [INFO]    IP local | {"ip":"192.168.1.42"}
-    2025-07-10T12:00:00.000Z [Red]     [INFO]    Nombre del servidor | {"hostname":"mi-mac","dns":"mi-mac.local"}
-    2025-07-10T12:00:00.000Z [Sistema] [INFO]    ══════════ Iniciando verificación de estado ══════════
-    2025-07-10T12:00:00.000Z [Sistema] [INFO]    ══════════ Verificación completada ══════════
+    <timestamp> [Backend] [SUCCESS] Servidor iniciado
+      → {
+      "puerto": 3000
+    }
+    <timestamp> [Red] [INFO] Servicio mDNS anunciado
+      → {
+      "tipo": "_monitor._tcp"
+    }
+    <timestamp> [Red] [INFO] IP local
+      → {
+      "ip": "192.168.1.42"
+    }
+    <timestamp> [Red] [INFO] Nombre del servidor
+      → {
+      "hostname": "mi-mac",
+      "dns": "mi-mac.local"
+    }
+    <timestamp> [Sistema] [INFO] ══════════ Iniciando verificación de estado ══════════
+    <timestamp> [Sistema] [INFO] ══════════ Verificación completada ══════════
     ```
 
     The server binds to `0.0.0.0:3000` and advertises itself on the local network via mDNS. Status checks run immediately at startup and repeat every five minutes.
